@@ -14,7 +14,11 @@ import { doc, setDoc } from "firebase/firestore"; // แก้จาก addDoc �
 import NewsScrollView from "./NewsScrollView";
 import { Ionicons, AntDesign } from "@expo/vector-icons";
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = ({ navigation, route }) => {
+  console.log("HomeScreen: Received route:", JSON.stringify(route, null, 2));
+
+  // ตรวจสอบและดึงค่า userData อย่างปลอดภัย
+  const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
   useEffect(() => {
     navigation.setOptions({
       headerTitle: () => (
@@ -95,9 +99,23 @@ const HomeScreen = ({ navigation }) => {
       Alert.alert("เกิดข้อผิดพลาดในการเพิ่มข้อมูล");
     }
   };
+
   return (
     <View style={styles.container}>
       <ScrollView>
+        <View>
+          <Text
+            style={{
+              marginLeft: 35,
+              marginTop: 20,
+              fontSize: 23,
+              fontWeight: "bold",
+            }}
+          >
+            Welcome {userData.username}!
+          </Text>
+        </View>
+
         <View style={styles.topIconContainer}>
           <TouchableOpacity onPress={() => navigation.navigate("Booklist")}>
             <View style={styles.bookIcon}>
@@ -107,9 +125,9 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         {/* 🆕 ปุ่มเพิ่มข้อมูล */}
-        <TouchableOpacity style={styles.addButton} onPress={addBookingData}>
+        {/* <TouchableOpacity style={styles.addButton} onPress={addBookingData}>
           <Text style={styles.addButtonText}>เพิ่มข้อมูลจองห้อง</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <NewsScrollView />
       </ScrollView>

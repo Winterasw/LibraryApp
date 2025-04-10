@@ -1,31 +1,83 @@
 import React, { useState } from "react";
-import { View, Text, Image, TouchableOpacity, TextInput } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Modal,
+  StyleSheet,
+} from "react-native";
 import AuthStyles from "./AuthStyles";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "./firebaseConfig";
 
 const SignInScreen = ({ navigation }) => {
   const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
+  const [alertMessage, setAlertMessage] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const handleSubmit = async () => {
+    try {
+      // ตรวจสอบว่า Student ID และ Password ไม่เป็นค่าว่าง
+      let newErrors = {};
 
-  const handleSubmit = () => {
-    let newErrors = {};
+      if (!studentId) {
+        newErrors.studentId = "Student ID is required";
+      } else if (!/^\d+$/.test(studentId)) {
+        newErrors.studentId = "Student ID must contain only numbers";
+      }
 
-    if (!studentId) {
-      newErrors.studentId = "Student ID is required";
-    } else if (!/^\d+$/.test(studentId)) {
-      newErrors.studentId = "Student ID must contain only numbers";
-    }
+      if (!password) {
+        newErrors.password = "Password is required";
+      } else if (password.length < 8) {
+        newErrors.password = "Password must be at least 8 characters";
+      }
 
-    if (!password) {
-      newErrors.password = "Password is required";
-    } else if (password.length < 8) {
-      newErrors.password = "Password must be at least 8 characters";
-    }
+      setErrors(newErrors);
 
-    setErrors(newErrors);
+      if (Object.keys(newErrors).length === 0) {
+        // ดึงข้อมูลผู้ใช้จาก Firestore
+        const userRef = doc(db, "user", studentId); // ใช้ studentId เป็น document ID
+        const userSnapshot = await getDoc(userRef);
 
-    if (Object.keys(newErrors).length === 0) {
-      navigation.replace("Main");
+        if (userSnapshot.exists()) {
+          const userData = userSnapshot.data();
+
+          // ตรวจสอบรหัสผ่าน
+          if (userData.password === password) {
+            console.log(
+              "SignInScreen: Sending userData:",
+              JSON.stringify(userData)
+            );
+            setAlertMessage(`Welcome, ${userData.username}`);
+            setModalVisible(true);
+            setTimeout(() => {
+              navigation.replace("Main", { userData }); // ไปยังหน้าหลัก
+
+              setModalVisible(false);
+            }, 2500); // 2000 = 2 วินาที
+          } else {
+            setAlertMessage("Invalid password.");
+            setModalVisible(true);
+            setTimeout(() => {
+              setModalVisible(false);
+            }, 1500);
+          }
+        } else {
+          setAlertMessage("Student ID not found.");
+          setModalVisible(true);
+          setTimeout(() => {
+            setModalVisible(false);
+          }, 1500);
+        }
+      }
+    } catch (error) {
+      console.error("Error logging in:", error.message);
+      setAlertMessage("Error", "An error occurred during login.");
+      setModalVisible(true);
     }
   };
 
@@ -39,7 +91,6 @@ const SignInScreen = ({ navigation }) => {
           }}
           style={AuthStyles.logo}
         />
-
         <Text style={AuthStyles.title}>WELCOME</Text>
         <Text style={AuthStyles.subText}>Please sign in to continue.</Text>
 
@@ -103,8 +154,57 @@ const SignInScreen = ({ navigation }) => {
       <TouchableOpacity onPress={handleSubmit} style={AuthStyles.button}>
         <Text style={AuthStyles.buttonText}>Login</Text>
       </TouchableOpacity>
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          Alert.alert("Modal has been closed.");
+          setModalVisible(!modalVisible);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalText}>{alertMessage}</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
+const styles = StyleSheet.create({
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: "80%", // เพิ่มความกว้างของ Modal
+    height: "20%", // เพิ่มความสูง
+    justifyContent: "center", // จัดให้อยู่ตรงกลาง
+  },
+  boxText: {
+    flex: 2, // ลดขนาดลง
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalText: {
+    fontSize: 17,
+    textAlign: "center",
+  },
+});
 export default SignInScreen;

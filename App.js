@@ -28,7 +28,8 @@ import BooklistScreen from "./components/BooklistScreen";
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function HomeStack() {
+function HomeStack({ route }) {
+  console.log("HomeStack received params:", route.params);
   return (
     <Stack.Navigator
       screenOptions={{
@@ -42,12 +43,16 @@ function HomeStack() {
         headerTitleAlign: "center",
       }}
     >
-      <Stack.Screen name="HomeStack" component={HomeScreen} />
+      <Stack.Screen
+        name="HomeStack"
+        component={HomeScreen}
+        initialParams={route?.params}
+      />
       <Stack.Screen name="Booklist" component={BooklistScreen} />
     </Stack.Navigator>
   );
 }
-function ProfileStack() {
+function ProfileStack({ route }) {
   const navigation = useNavigation();
   return (
     <Stack.Navigator
@@ -75,14 +80,18 @@ function ProfileStack() {
         ),
       }}
     >
-      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        initialParams={route?.params}
+      />
       <Stack.Screen name="Setting" component={SettingScreen} />
       <Stack.Screen name="Setting2" component={Setting2Screen} />
     </Stack.Navigator>
   );
 }
 
-function BookingStack() {
+function BookingStack({ route }) {
   return (
     <Stack.Navigator
       screenOptions={{
@@ -115,9 +124,9 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* <Stack.Screen name="Splash" component={SplashScreen} />
+        {/* <Stack.Screen name="Splash" component={SplashScreen} /> */}
         <Stack.Screen name="SignIn" component={SignInScreen} />
-        <Stack.Screen name="SignUp" component={SignUpScreen} />
+        {/* <Stack.Screen name="SignUp" component={SignUpScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} /> */}
         <Stack.Screen name="Main" component={MainTabNavigator} />
         <Stack.Screen
@@ -130,7 +139,8 @@ export default function App() {
   );
 }
 
-function MainTabNavigator() {
+function MainTabNavigator({ route }) {
+  console.log("MainTabNavigator received params:", route.params);
   return (
     <Tab.Navigator
       initialRouteName="HomeTab"
@@ -168,9 +178,21 @@ function MainTabNavigator() {
         },
       })}
     >
-      <Tab.Screen name="BookingTab" component={BookingStack} />
-      <Tab.Screen name="HomeTab" component={HomeStack} />
-      <Tab.Screen name="ProfileTab" component={ProfileStack} />
+      <Tab.Screen
+        name="BookingTab"
+        component={BookingStack}
+        initialParams={route?.params}
+      />
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeStack}
+        initialParams={route?.params}
+      />
+      <Tab.Screen
+        name="ProfileTab"
+        component={ProfileStack}
+        initialParams={route?.params}
+      />
     </Tab.Navigator>
   );
 }

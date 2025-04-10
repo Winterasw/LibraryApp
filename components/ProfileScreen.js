@@ -13,8 +13,9 @@ const profileImage = {
   uri: "https://cdn.readawrite.com/articles/5887/5886037/thumbnail/small.gif?1",
 };
 
-const ProfileScreen = ({ navigation }) => {
+const ProfileScreen = ({ navigation, route }) => {
   const [hasBooking, setHasBooking] = useState(true);
+  const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
 
   const cancelBooking = () => {
     Alert.alert("ยกเลิกการจองห้องสำเร็จ!!!", "", [
@@ -53,13 +54,12 @@ const ProfileScreen = ({ navigation }) => {
           source={profileImage}
           style={{ width: 100, height: 100, borderRadius: 50 }}
         />
+
         <Text style={{ fontSize: 20, fontWeight: "bold", marginTop: 10 }}>
-          สุธี รวยมาก
+          {userData.username}
         </Text>
-        <Text style={{ fontSize: 20 }}> 6500000</Text>
-        <Text style={{ color: "gray", marginTop: 1 }}>
-          📧 suthi.rue@spumail.net
-        </Text>
+        <Text style={{ fontSize: 20 }}>{userData.studentID}</Text>
+        <Text style={{ color: "gray", marginTop: 1 }}>📧 {userData.email}</Text>
       </View>
 
       {/* แสดงข้อมูลการจองห้อง */}
