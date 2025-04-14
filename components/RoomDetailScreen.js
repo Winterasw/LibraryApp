@@ -8,10 +8,15 @@ import {
   Modal,
 } from "react-native";
 import { db } from "./firebaseConfig";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { AntDesign } from "@expo/vector-icons";
 
 const RoomDetailScreen = ({ route, navigation }) => {
+  // console.log(
+  //   "RoomDetailScreen: Received route:",
+  //   JSON.stringify(route, null, 2)
+  // );
+  const userData = route.params.userData;
   const room = route.params.room;
   const [bookings, setBookings] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -46,38 +51,49 @@ const RoomDetailScreen = ({ route, navigation }) => {
   }, [room.room_number]);
 
   // ฟังก์ชันอัปเดต Booking Status ใน Firestore
-  // const updateBookingStatus = async (timeSlot, newStatus, user) => {
-  //   try {
-  //     const roomRef = doc(db, "meeting_rooms", room.room_number);
-  //     const updatedBooking = {
-  //       ...bookings.find((b) => b.timeSlot === timeSlot), // ค้นหา timeslot ที่ต้องการอัปเดต
-  //       status: newStatus,
-  //       userId: user,
-  //     };
+  const updateBookingStatus = async (timeConfirm, newStatus, user) => {
+    try {
+      const userRef = doc(db, "user", user);
+      const userSnapshot = await getDoc(userRef);
+      const userData = userSnapshot.data();
+      const roomRef = doc(db, "meeting_rooms", room.room_number);
+      const updatedBooking = {
+        ...bookings.find((b) => b.timeSlot === timeConfirm.timeSlot), // ค้นหา timeslot ที่ต้องการอัปเดต
+        status: newStatus,
+        userId: user,
+      };
 
-  //     const updatedBookings = {
-  //       ...Object.fromEntries(bookings.map((b) => [b.timeSlot, b])), // แปลง bookings เป็น object
-  //       [timeSlot]: updatedBooking, // อัปเดต timeslot ที่ต้องการ
-  //     };
+      const updatedBookings = {
+        ...Object.fromEntries(bookings.map((b) => [b.timeSlot, b])), // แปลง bookings เป็น object
+        [timeConfirm.timeSlot]: updatedBooking, // อัปเดต timeslot ที่ต้องการ
+      };
+      await setDoc(
+        userRef,
+        {
+          bookingnow: room.room_number,
+          bookingstart: timeConfirm.start,
+          bookingend: timeConfirm.end,
+        },
+        { merge: true }
+      ); // อัปเดตใน Firestore
+      await setDoc(roomRef, { bookings: updatedBookings }, { merge: true }); // อัปเดตใน Firestore
 
-  //     await setDoc(roomRef, { bookings: updatedBookings }, { merge: true }); // อัปเดตใน Firestore
-
-  //     Alert.alert("Booking updated successfully!");
-  //   } catch (error) {
-  //     console.error("Error updating booking:", error);
-  //     Alert.alert("Failed to update booking.");
-  //   }
-  // };
+      Alert.alert("Booking updated successfully!");
+      console.log("Booking updated successfully!");
+    } catch (error) {
+      console.error("Error updating booking:", error);
+      Alert.alert("Failed to update booking.");
+    }
+  };
 
   // Render timeslot
   const renderBookingItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => {
-        // updateBookingStatus(item.timeSlot, "booked", "user123"); // กดเพื่ออัปเดตเป็น "booked"
         // console.log("Log items : ", item);
         setTimeConfirm(item);
         setModalVisible(false); // ปิด Modal แรก
-        setSecondModalVisible(true); // เปิด Modal ใหม่
+        setSecondModalVisible(true);
       }}
     >
       <View style={styles.timeSlot}>
@@ -97,7 +113,6 @@ const RoomDetailScreen = ({ route, navigation }) => {
 
   const confirmBooking = () => {
     setSecondModalVisible(!secondModalVisible);
-    console.log("Booked successfully!");
     console.log(
       "Room info | ",
       " Floor : ",
@@ -109,6 +124,8 @@ const RoomDetailScreen = ({ route, navigation }) => {
       " | Capacity : ",
       room.capacity
     );
+    updateBookingStatus(timeConfirm, "booked", userData.studentID); // กดเพื่ออัปเดตเป็น "booked"
+
     console.log("time start : ", timeConfirm.start);
     console.log("time end : ", timeConfirm.end);
   };

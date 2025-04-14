@@ -114,8 +114,16 @@ function BookingStack({ route }) {
         ),
       }}
     >
-      <Stack.Screen name="Booking" component={BookingScreen} />
-      <Stack.Screen name="RoomDetail" component={RoomDetailScreen} />
+      <Stack.Screen
+        name="Booking"
+        component={BookingScreen}
+        initialParams={route?.params}
+      />
+      <Stack.Screen
+        name="RoomDetail"
+        component={RoomDetailScreen}
+        initialParams={route?.params}
+      />
     </Stack.Navigator>
   );
 }

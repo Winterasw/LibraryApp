@@ -11,7 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { db } from "./firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
-const BookingScreen = ({ navigation }) => {
+const BookingScreen = ({ navigation, route }) => {
+  console.log("BookingScreen: Received route:", JSON.stringify(route, null, 2));
+
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("floor4");
   const [items, setItems] = useState([

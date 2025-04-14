@@ -17,7 +17,7 @@ import { Ionicons, AntDesign } from "@expo/vector-icons";
 const HomeScreen = ({ navigation, route }) => {
   console.log("HomeScreen: Received route:", JSON.stringify(route, null, 2));
 
-  // ตรวจสอบและดึงค่า userData อย่างปลอดภัย
+  // ตรวจสอบและดึงค่า userData 
   const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
   useEffect(() => {
     navigation.setOptions({
@@ -124,7 +124,7 @@ const HomeScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 🆕 ปุ่มเพิ่มข้อมูล */}
+        {/* Test ปุ่มเพิ่มข้อมูล  !*/}
         {/* <TouchableOpacity style={styles.addButton} onPress={addBookingData}>
           <Text style={styles.addButtonText}>เพิ่มข้อมูลจองห้อง</Text>
         </TouchableOpacity> */}
