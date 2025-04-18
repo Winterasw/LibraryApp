@@ -32,18 +32,17 @@ const RoomDetailScreen = ({ route, navigation }) => {
   // ฟังการเปลี่ยนแปลงใน Firestore แบบเรียลไทม์
 
   useEffect(() => {
-    const roomRef = doc(db, "meeting_rooms", room.room_number); // ระบุ document ใน Firestore
+    const roomRef = doc(db, "meeting_rooms", room.room_number);
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
         const roomData = snapshot.data();
         // console.log(roomData);
-
         const bookingsArray = Object.keys(roomData.bookings).map((key) => ({
           timeSlot: key,
           ...roomData.bookings[key],
         }));
         bookingsArray.sort((a, b) => a.timeSlot.localeCompare(b.timeSlot)); // เรียงลำดับเวลา
-        setBookings(bookingsArray); // อัปเดต State เพื่อรีเรนเดอร์ UI
+        setBookings(bookingsArray);
       }
     });
 
@@ -56,6 +55,7 @@ const RoomDetailScreen = ({ route, navigation }) => {
       const userRef = doc(db, "user", user);
       const userSnapshot = await getDoc(userRef);
       const userData = userSnapshot.data();
+
       const roomRef = doc(db, "meeting_rooms", room.room_number);
       const updatedBooking = {
         ...bookings.find((b) => b.timeSlot === timeConfirm.timeSlot), // ค้นหา timeslot ที่ต้องการอัปเดต
@@ -70,9 +70,10 @@ const RoomDetailScreen = ({ route, navigation }) => {
       await setDoc(
         userRef,
         {
-          bookingnow: room.room_number,
+          bookingroom: room.room_number,
           bookingstart: timeConfirm.start,
           bookingend: timeConfirm.end,
+          bookingfloor: room.floor,
         },
         { merge: true }
       ); // อัปเดตใน Firestore
