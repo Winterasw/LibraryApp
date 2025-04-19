@@ -12,6 +12,8 @@ import {
 import AuthStyles from "./AuthStyles";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
+import LottieView from "lottie-react-native";
+import welcomeAnim from "../assets/welcome.json"; // ไฟล์ checkmark animation
 
 const SignInScreen = ({ navigation }) => {
   const [studentId, setStudentId] = useState("");
@@ -52,11 +54,10 @@ const SignInScreen = ({ navigation }) => {
               "SignInScreen: Sending userData:",
               JSON.stringify(userData)
             );
-            setAlertMessage(`Welcome, ${userData.username}`);
+            setAlertMessage(`Welcome ${userData.username}`);
             setModalVisible(true);
             setTimeout(() => {
               navigation.replace("Main", { userData }); // ไปยังหน้าหลัก
-
               setModalVisible(false);
             }, 2500); // 2000 = 2 วินาที
           } else {
@@ -159,12 +160,17 @@ const SignInScreen = ({ navigation }) => {
         transparent={true}
         visible={modalVisible}
         onRequestClose={() => {
-          Alert.alert("Modal has been closed.");
           setModalVisible(!modalVisible);
         }}
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
+            <LottieView
+              source={welcomeAnim}
+              autoPlay
+              loop={false}
+              style={{ width: 100, height: 100 }}
+            />
             <Text style={styles.modalText}>{alertMessage}</Text>
           </View>
         </View>
@@ -194,7 +200,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     width: "80%", // เพิ่มความกว้างของ Modal
-    height: "20%", // เพิ่มความสูง
+    height: "30%", // เพิ่มความสูง
     justifyContent: "center", // จัดให้อยู่ตรงกลาง
   },
   boxText: {
@@ -203,7 +209,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalText: {
-    fontSize: 17,
+    fontSize: 18,
+    marginTop: 10,
     textAlign: "center",
   },
 });

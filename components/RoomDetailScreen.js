@@ -10,6 +10,8 @@ import {
 import { db } from "./firebaseConfig";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { AntDesign } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
+import successAnim from "../assets/success.json"; // ไฟล์ checkmark animation
 
 const RoomDetailScreen = ({ route, navigation }) => {
   // console.log(
@@ -22,6 +24,8 @@ const RoomDetailScreen = ({ route, navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [secondModalVisible, setSecondModalVisible] = useState(false);
   const [timeConfirm, setTimeConfirm] = useState(""); // ค่า "" เริ่มต้นเพราะถ้า null จะอ่านค่า useEffect ไม่ได้
+  const [alertModal, setAlertModal] = useState(false);
+  const [updatedUserData, setUpdatedUserData] = useState("");
   // ฟังก์ชั่นอ่านค่า parameter จาก timeslot
   useEffect(() => {
     if (timeConfirm !== null) {
@@ -30,9 +34,9 @@ const RoomDetailScreen = ({ route, navigation }) => {
   }, [timeConfirm]);
 
   // ฟังการเปลี่ยนแปลงใน Firestore แบบเรียลไทม์
-
   useEffect(() => {
     const roomRef = doc(db, "meeting_rooms", room.room_number);
+
     const unsubscribe = onSnapshot(roomRef, (snapshot) => {
       if (snapshot.exists()) {
         const roomData = snapshot.data();
@@ -49,13 +53,41 @@ const RoomDetailScreen = ({ route, navigation }) => {
     return () => unsubscribe(); // หยุดฟังข้อมูลเมื่อ component ถูก unmount
   }, [room.room_number]);
 
+  useEffect(() => {
+    const roomRef = doc(db, "meeting_rooms", room.room_number);
+    const unsubscribeRoom = onSnapshot(roomRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const roomData = snapshot.data();
+        const bookingsArray = Object.keys(roomData.bookings).map((key) => ({
+          timeSlot: key,
+          ...roomData.bookings[key],
+        }));
+        bookingsArray.sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+        setBookings(bookingsArray);
+      }
+    });
+
+    return () => unsubscribeRoom();
+  }, [room.room_number]);
+
+  useEffect(() => {
+    const userRef = doc(db, "user", userData.studentID);
+    const unsubscribeUser = onSnapshot(userRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const updatedUserData = docSnapshot.data();
+        setUpdatedUserData(updatedUserData);
+      } else {
+        console.log("Document does not exist");
+      }
+    });
+
+    return () => unsubscribeUser();
+  }, [userData?.studentID]);
+
   // ฟังก์ชันอัปเดต Booking Status ใน Firestore
   const updateBookingStatus = async (timeConfirm, newStatus, user) => {
     try {
       const userRef = doc(db, "user", user);
-      const userSnapshot = await getDoc(userRef);
-      const userData = userSnapshot.data();
-
       const roomRef = doc(db, "meeting_rooms", room.room_number);
       const updatedBooking = {
         ...bookings.find((b) => b.timeSlot === timeConfirm.timeSlot), // ค้นหา timeslot ที่ต้องการอัปเดต
@@ -79,7 +111,6 @@ const RoomDetailScreen = ({ route, navigation }) => {
       ); // อัปเดตใน Firestore
       await setDoc(roomRef, { bookings: updatedBookings }, { merge: true }); // อัปเดตใน Firestore
 
-      Alert.alert("Booking updated successfully!");
       console.log("Booking updated successfully!");
     } catch (error) {
       console.error("Error updating booking:", error);
@@ -90,6 +121,7 @@ const RoomDetailScreen = ({ route, navigation }) => {
   // Render timeslot
   const renderBookingItem = ({ item }) => (
     <TouchableOpacity
+      disabled={item.status === "booked" || updatedUserData.bookingroom != ""}
       onPress={() => {
         // console.log("Log items : ", item);
         setTimeConfirm(item);
@@ -97,7 +129,13 @@ const RoomDetailScreen = ({ route, navigation }) => {
         setSecondModalVisible(true);
       }}
     >
-      <View style={styles.timeSlot}>
+      <View
+        style={[
+          styles.timeSlot,
+          item.status === "booked" && styles.disabledTimeSlot,
+          updatedUserData.bookingroom != "" && styles.disabledTimeSlot,
+        ]}
+      >
         <View>
           <Text style={styles.modalText}>{`${item.start} - ${item.end}`}</Text>
         </View>
@@ -125,10 +163,14 @@ const RoomDetailScreen = ({ route, navigation }) => {
       " | Capacity : ",
       room.capacity
     );
-    updateBookingStatus(timeConfirm, "booked", userData.studentID); // กดเพื่ออัปเดตเป็น "booked"
 
+    updateBookingStatus(timeConfirm, "booked", userData.studentID); // กดเพื่ออัปเดตเป็น "booked"
     console.log("time start : ", timeConfirm.start);
     console.log("time end : ", timeConfirm.end);
+    setAlertModal(true);
+    setTimeout(() => {
+      setAlertModal(false);
+    }, 2500); // 2000 = 2 วินาที
   };
 
   return (
@@ -252,6 +294,27 @@ const RoomDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
       </Modal>
+      {/* Alert confirm modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={alertModal}
+        onRequestClose={() => {
+          setAlertModal(!alertModal);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <LottieView
+              source={successAnim}
+              autoPlay
+              loop={false}
+              style={{ width: 120, height: 120 }}
+            />
+            <Text style={styles.mainText}>จองห้องสำเร็จ!!!</Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -288,6 +351,9 @@ const styles = {
     borderColor: "#dbd9d9",
     borderRadius: 50,
   },
+  disabledTimeSlot: {
+    opacity: 0.5,
+  },
   button: {
     borderRadius: 40,
     padding: 12,
@@ -299,7 +365,6 @@ const styles = {
   },
   buttonClose: {
     marginTop: 20,
-
     backgroundColor: "#adadad",
   },
   textStyle: {

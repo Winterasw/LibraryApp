@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Alert,
   StyleSheet,
+  Modal,
 } from "react-native";
 import React, { useState, useLayoutEffect, useEffect } from "react";
 import { AntDesign } from "@expo/vector-icons";
@@ -17,6 +18,8 @@ import {
   collection,
   onSnapshot,
 } from "firebase/firestore"; // แก้จาก addDoc เป็น setDoc
+import LottieView from "lottie-react-native";
+import successAnim from "../assets/success.json"; // ไฟล์ checkmark animation
 
 const profileImage = {
   uri: "https://cdn.readawrite.com/articles/5887/5886037/thumbnail/small.gif?1",
@@ -27,6 +30,8 @@ const ProfileScreen = ({ navigation, route }) => {
 
   const [hasBooking, setHasBooking] = useState(false);
   const [updatedUserData, setUpdatedUserData] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
   const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
 
   useEffect(() => {
@@ -62,6 +67,13 @@ const ProfileScreen = ({ navigation, route }) => {
   }, [userData?.studentID]);
 
   const cancelBooking = async () => {
+    // animation สำเร็จ
+    setModalVisible(true);
+    setTimeout(() => {
+      setModalVisible(false);
+    }, 2500);
+    setConfirmModal(false);
+
     try {
       const userRef = doc(db, "user", userData.studentID);
       const roomRef = doc(db, "meeting_rooms", userData.bookingroom);
@@ -156,7 +168,7 @@ const ProfileScreen = ({ navigation, route }) => {
 
           {/* ปุ่มยกเลิกการจอง */}
           <TouchableOpacity
-            onPress={cancelBooking}
+            onPress={() => setConfirmModal(true)}
             style={{
               marginTop: 15,
               backgroundColor: "white",
@@ -182,8 +194,125 @@ const ProfileScreen = ({ navigation, route }) => {
           <Text style={{ color: "gray", fontSize: 16 }}>ไม่มีการจองห้อง</Text>
         </View>
       )}
+      {/* Confirm Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={confirmModal}
+        onRequestClose={() => {
+          setConfirmModal(!confirmModal);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text
+              style={{
+                fontSize: 17,
+                justifyContent: "center",
+                marginBottom: 10,
+              }}
+            >
+              คุณต้องการยกเลิกการจองห้องหรือไม่
+            </Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonClose]}
+                onPress={() => setConfirmModal(!confirmModal)}
+              >
+                <Text style={styles.textStyle}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonConfirm]}
+                onPress={() => cancelBooking()}
+              >
+                <Text style={styles.textStyle}>ยืนยัน</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Cancel Animation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          setModalVisible(!modalVisible);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <LottieView
+              source={successAnim}
+              autoPlay
+              loop={false}
+              style={{ width: 120, height: 120 }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  textStyle: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 17,
+  },
+
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: "80%",
+    height: "20%",
+    justifyContent: "center",
+  },
+
+  modalText: {
+    fontSize: 18,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  buttonContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+
+  Twobutton: {
+    marginTop: 20,
+    borderRadius: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    elevation: 2,
+  },
+  buttonConfirm: {
+    backgroundColor: "#ED008C",
+  },
+  buttonClose: {
+    marginTop: 20,
+    backgroundColor: "#adadad",
+  },
+});
 
 export default ProfileScreen;
