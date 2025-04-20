@@ -6,18 +6,21 @@ import {
   ScrollView,
   Image,
   Alert,
+  FlatList,
+  ActivityIndicator,
 } from "react-native";
 import React, { useState, useEffect } from "react";
 import { db } from "./firebaseConfig";
 import { doc, setDoc } from "firebase/firestore"; // แก้จาก addDoc เป็น setDoc
-
-import NewsScrollView from "./NewsScrollView";
 import { Ionicons, AntDesign } from "@expo/vector-icons";
+import { shadow } from "react-native-paper";
 
 const HomeScreen = ({ navigation, route }) => {
   console.log("HomeScreen: Received route:", JSON.stringify(route, null, 2));
-
-  // ตรวจสอบและดึงค่า userData 
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [recommendedBooks, setRecommendedBooks] = useState([]);
+  // ตรวจสอบและดึงค่า userData
   const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
   useEffect(() => {
     navigation.setOptions({
@@ -35,7 +38,9 @@ const HomeScreen = ({ navigation, route }) => {
       ),
     });
   }, [navigation]);
-
+  {
+    /* For Dev */
+  }
   const addBookingData = async () => {
     const floors = [4, 5, 6]; // ตัวอย่างชั้น
     const equipmentOptions = [
@@ -99,6 +104,71 @@ const HomeScreen = ({ navigation, route }) => {
       Alert.alert("เกิดข้อผิดพลาดในการเพิ่มข้อมูล");
     }
   };
+  const fetchBooks = async () => {
+    try {
+      setLoading(true);
+      const urls = [
+        "https://openlibrary.org/subjects/fiction.json?limit=20",
+        "https://openlibrary.org/subjects/cooking.json?limit=20",
+        "https://openlibrary.org/subjects/history.json?limit=20",
+        "https://openlibrary.org/subjects/arts.json?limit=20",
+        "https://openlibrary.org/subjects/animals.json?limit=20",
+        "https://openlibrary.org/subjects/science&mathematics.json?limit=20",
+        "https://openlibrary.org/subjects/business&finance.json?limit=20",
+      ];
+      const responses = await Promise.all(urls.map((url) => fetch(url)));
+      const dataList = await Promise.all(responses.map((res) => res.json()));
+
+      // console.log("Received data:", data);
+      //  Fetch หนังสือทั้งหมด
+      const allBooks = dataList.flatMap((data) =>
+        data.works.map((item) => ({
+          title: item.title,
+          author: item.authors
+            ? item.authors.map((author) => author.name).join(", ")
+            : "Unknown Author",
+          category: data.name, // คุณสามารถปรับให้เข้ากับหมวดหมู่จริง
+          cover_url: item.cover_id
+            ? `https://covers.openlibrary.org/b/id/${item.cover_id}-L.jpg`
+            : "https://via.placeholder.com/100x150",
+        }))
+      );
+      // Fetch หนังสือแนะนำ
+      const fetchRecommendedBooks = async () => {
+        try {
+          const response = await fetch(
+            "https://openlibrary.org/subjects/bestsellers.json?limit=10"
+          );
+          const data = await response.json();
+
+          const booksData = data.works.map((item) => ({
+            title: item.title,
+            author: item.authors
+              ? item.authors.map((author) => author.name).join(", ")
+              : "Unknown Author",
+            summary: item.description || "No description available",
+            cover_url: item.cover_id
+              ? `https://covers.openlibrary.org/b/id/${item.cover_id}-L.jpg`
+              : "https://via.placeholder.com/100x150",
+          }));
+
+          setRecommendedBooks(booksData);
+        } catch (error) {
+          console.error("Error fetching recommended books:", error);
+        }
+      };
+      fetchRecommendedBooks();
+      setBooks(allBooks);
+    } catch (error) {
+      console.error("Error fetching books:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBooks();
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -124,12 +194,36 @@ const HomeScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Test ปุ่มเพิ่มข้อมูล  !*/}
+        {/* For Dev ปุ่มเพิ่มข้อมูล  !*/}
         {/* <TouchableOpacity style={styles.addButton} onPress={addBookingData}>
           <Text style={styles.addButtonText}>เพิ่มข้อมูลจองห้อง</Text>
         </TouchableOpacity> */}
+        <View style={[{ margin: 20 }]}>
+          <Text style={styles.sectionTitle}>📚 หนังสือแนะนำ</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="50" color="black" />
+            </View>
+          ) : (
+            <FlatList
+              data={recommendedBooks}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.recommendCard}>
+                  <Image
+                    source={{ uri: item.cover_url }}
+                    style={styles.recommendImage}
+                  />
 
-        <NewsScrollView />
+                  <Text style={styles.recommendTitle}>{item.title}</Text>
+                  <Text style={styles.recommendAuthor}>{item.author}</Text>
+                </View>
+              )}
+            />
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -150,7 +244,7 @@ const styles = StyleSheet.create({
   bookIcon: {
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "grey",
+    backgroundColor: "#d4d4d4",
     borderRadius: 100,
     width: 80,
     height: 80,
@@ -189,6 +283,51 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 20,
+    marginLeft: 10,
+    marginBottom: 10,
+  },
+
+  recommendCard: {
+    width: 120,
+    marginRight: 10,
+    alignItems: "center",
+  },
+
+  recommendImage: {
+    width: 100,
+    height: 150,
+    borderRadius: 8,
+    marginBottom: 5,
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+
+  recommendTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+
+  recommendAuthor: {
+    fontSize: 12,
+    color: "#777",
+    textAlign: "center",
   },
 });
 

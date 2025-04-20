@@ -1,7 +1,33 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Modal,
+} from "react-native";
+import LottieView from "lottie-react-native";
+import welcomeAnim from "../assets/welcome.json"; // ไฟล์ checkmark animation
+import * as SecureStore from "expo-secure-store";
+const SettingsScreen = ({ navigation }) => {
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [logoutAnim, setLogoutAnim] = useState(false);
+  const handleLogout = async () => {
+    await SecureStore.deleteItemAsync("studentId");
+    await SecureStore.deleteItemAsync("password");
+    setLogoutAnim(true),
+      setTimeout(() => {
+        setLogoutAnim(false);
+        setConfirmLogout(false);
+        console.log("log out!");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "SignIn" }],
+        });
+      }, 2500);
+  };
 
-const SettingsScreen = ({ language, setLanguage, navigation }) => {
   return (
     <View style={styles.container}>
       {/* โลโก้ ให้อยู่ตรงกลางบนปุ่มเปลี่ยนภาษา */}
@@ -12,73 +38,87 @@ const SettingsScreen = ({ language, setLanguage, navigation }) => {
         style={styles.logo}
       />
 
-      {/* การตั้งค่าภาษา */}
-      <View style={styles.languageContainer}>
-        <Text style={styles.languageText}>
-          {language === "en" ? "Language" : "ภาษา"}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setLanguage(language === "en" ? "th" : "en")}
-        >
-          <Text style={styles.changeText}>
-            {language === "en" ? "Change" : "เปลี่ยน"}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* รายการเมนู */}
       <View style={styles.menuContainer}>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("InfoScreen", { title: "FAQ", type: "faq" })
-          }
-        >
-          <Text style={styles.menuText}>
-            {language === "en" ? "FAQ" : "คำถามที่พบบ่อย"}
-          </Text>
+        <TouchableOpacity onPress={() => console.log("คำถามที่พบบ่อย")}>
+          <Text style={styles.menuText}>คำถามที่พบบ่อย</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("InfoScreen", {
-              title: "About Us",
-              type: "about",
-            })
-          }
-        >
-          <Text style={styles.menuText}>
-            {language === "en" ? "About Us" : "เกี่ยวกับเรา"}
-          </Text>
+        <TouchableOpacity onPress={() => console.log("เกี่ยวกับเรา")}>
+          <Text style={styles.menuText}>เกี่ยวกับเรา</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("InfoScreen", {
-              title: "Privacy Policy",
-              type: "privacy",
-            })
-          }
-        >
-          <Text style={styles.menuText}>
-            {language === "en" ? "Privacy Policy" : "นโยบายความเป็นส่วนตัว"}
-          </Text>
+        <TouchableOpacity onPress={() => console.log("นโยบายความเป็นส่วนตัว")}>
+          <Text style={styles.menuText}>นโยบายความเป็นส่วนตัว</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log("Rate Us Pressed")}>
-          <Text style={styles.menuText}>
-            {language === "en" ? "Rate Us" : "ให้คะแนนฉัน"}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => console.log("Logout Pressed")}>
-          <Text style={styles.menuText}>
-            {language === "en" ? "Logout" : "ออกจากระบบ"}
-          </Text>
+        <TouchableOpacity onPress={() => console.log("ให้คะแนนฉัน")}>
+          <Text style={styles.menuText}>ให้คะแนนฉัน</Text>
         </TouchableOpacity>
       </View>
 
-      {/* ลบบัญชี */}
-      <TouchableOpacity style={styles.deleteButton}>
-        <Text style={styles.deleteText}>
-          {language === "en" ? "Delete This Account" : "ลบบัญชีนี้"}
-        </Text>
+      <TouchableOpacity
+        onPress={() => setConfirmLogout(true)}
+        style={styles.deleteButton}
+      >
+        <Text style={styles.deleteText}>ออกจากระบบ</Text>
       </TouchableOpacity>
+      {/* Logout Confirmation */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={confirmLogout}
+        onRequestClose={() => {
+          setConfirmLogout(!confirmLogout);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text
+              style={{
+                fontSize: 17,
+                justifyContent: "center",
+                marginBottom: 10,
+              }}
+            >
+              คุณต้องออกจากระบบใช่หรือไม่
+            </Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonClose]}
+                onPress={() => setConfirmLogout(!confirmLogout)}
+              >
+                <Text style={styles.textStyle}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonConfirm]}
+                onPress={() => handleLogout()}
+              >
+                <Text style={styles.textStyle}>ยืนยัน</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Logout Animation */}
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={logoutAnim}
+        onRequestClose={() => {
+          setLogoutAnim(!logoutAnim);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <LottieView
+              source={welcomeAnim}
+              autoPlay
+              loop={false}
+              style={{ width: 100, height: 100 }}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -108,6 +148,68 @@ const styles = StyleSheet.create({
   menuText: { fontSize: 18, marginVertical: 10 },
   deleteButton: { marginTop: 30, alignItems: "center" },
   deleteText: { color: "red", fontSize: 18 },
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  textStyle: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 15,
+  },
+
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: "80%",
+    height: "20%",
+    justifyContent: "center",
+  },
+
+  modalText: {
+    fontSize: 18,
+    marginTop: 10,
+    textAlign: "center",
+  },
+  buttonContainer: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+  },
+
+  Twobutton: {
+    marginTop: 20,
+    borderRadius: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    elevation: 2,
+  },
+  buttonConfirm: {
+    backgroundColor: "#ED008C",
+  },
+  buttonClose: {
+    marginTop: 20,
+    backgroundColor: "#adadad",
+  },
 });
 
 export default SettingsScreen;

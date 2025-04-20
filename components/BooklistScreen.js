@@ -6,121 +6,52 @@ import {
   StyleSheet,
   Image,
   TouchableOpacity,
+  ActivityIndicator,
+  TextInput,
 } from "react-native";
-import { db } from "./firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
-
-import { doc, setDoc } from "firebase/firestore"; // ใช้ Firestore
-
-const addBooks = async () => {
-  const books = [
-    {
-      title: "The Great Adventure",
-      author: "John Doe",
-      summary: "A thrilling tale of exploration and courage.",
-      category: "Fiction",
-      cover_url: "https://via.placeholder.com/150?text=The+Great+Adventure",
-      status: "available",
-    },
-    {
-      title: "Science Wonders",
-      author: "Jane Smith",
-      summary: "Discover the amazing world of science.",
-      category: "Science",
-      cover_url: "https://via.placeholder.com/150?text=Science+Wonders",
-      status: "borrowed",
-    },
-    {
-      title: "Cooking 101",
-      author: "Chef A",
-      summary: "Learn the basics of cooking delicious meals.",
-      category: "Cooking",
-      cover_url: "https://via.placeholder.com/150?text=Cooking+101",
-      status: "available",
-    },
-    {
-      title: "History Unveiled",
-      author: "Dr. B",
-      summary: "Delve into the secrets of world history.",
-      category: "History",
-      cover_url: "https://via.placeholder.com/150?text=History+Unveiled",
-      status: "borrowed",
-    },
-    {
-      title: "Mystery of the Moon",
-      author: "Alice Cooper",
-      summary: "An enigmatic journey to the moon's depths.",
-      category: "Mystery",
-      cover_url: "https://via.placeholder.com/150?text=Mystery+Moon",
-      status: "available",
-    },
-    {
-      title: "The Art of Living",
-      author: "Sophia Lee",
-      summary: "Insights into living a balanced and fulfilling life.",
-      category: "Self-help",
-      cover_url: "https://via.placeholder.com/150?text=The+Art+of+Living",
-      status: "available",
-    },
-    {
-      title: "Space Odyssey",
-      author: "Neil Armstrong",
-      summary: "Explore the vast universe in this epic tale.",
-      category: "Sci-Fi",
-      cover_url: "https://via.placeholder.com/150?text=Space+Odyssey",
-      status: "available",
-    },
-    {
-      title: "Business Tactics",
-      author: "Elon Tusk",
-      summary: "Learn strategies to excel in business.",
-      category: "Business",
-      cover_url: "https://via.placeholder.com/150?text=Business+Tactics",
-      status: "borrowed",
-    },
-    {
-      title: "Art Beyond Boundaries",
-      author: "Picasso Jr.",
-      summary: "Unleashing creativity in modern art.",
-      category: "Art",
-      cover_url: "https://via.placeholder.com/150?text=Art+Beyond",
-      status: "available",
-    },
-    {
-      title: "Travel Diaries",
-      author: "Nomad X",
-      summary: "Journeys across breathtaking destinations.",
-      category: "Travel",
-      cover_url: "https://via.placeholder.com/150?text=Travel+Diaries",
-      status: "available",
-    },
-  ];
-
-  try {
-    for (let i = 0; i < books.length; i++) {
-      const bookId = `book${i + 1}`; // สร้าง ID สำหรับหนังสือแต่ละเล่ม เช่น book1, book2,...
-      const bookRef = doc(db, "books", bookId); // อ้างอิงไปยังเอกสาร
-      await setDoc(bookRef, books[i]); // เพิ่มข้อมูลลงใน Firestore
-      console.log(`✅ Book ${bookId} added successfully!`);
-    }
-    alert("Books added successfully!");
-  } catch (error) {
-    console.error("❌ Error adding books:", error);
-    alert("Failed to add books.");
-  }
-};
+import { Picker } from "@react-native-picker/picker";
 
 const BooklistScreen = ({ navigation }) => {
   const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
-  // ฟังก์ชันดึงข้อมูลจาก Firestore
+  // ฟังก์ชันดึงข้อมูลจาก OpenLibrary API
   const fetchBooks = async () => {
     try {
-      const querySnapshot = await getDocs(collection(db, "books"));
-      const booksData = querySnapshot.docs.map((doc) => doc.data());
-      setBooks(booksData);
+      setLoading(true);
+      const urls = [
+        "https://openlibrary.org/subjects/fiction.json?limit=20",
+        "https://openlibrary.org/subjects/cooking.json?limit=20",
+        "https://openlibrary.org/subjects/history.json?limit=20",
+        "https://openlibrary.org/subjects/arts.json?limit=20",
+        "https://openlibrary.org/subjects/animals.json?limit=20",
+        "https://openlibrary.org/subjects/science&mathematics.json?limit=20",
+        "https://openlibrary.org/subjects/business&finance.json?limit=20",
+      ];
+      const responses = await Promise.all(urls.map((url) => fetch(url)));
+      const dataList = await Promise.all(responses.map((res) => res.json()));
+
+      // console.log("Received data:", data);
+      const allBooks = dataList.flatMap((data) =>
+        data.works.map((item) => ({
+          title: item.title,
+          author: item.authors
+            ? item.authors.map((author) => author.name).join(", ")
+            : "Unknown Author",
+          category: data.name, // คุณสามารถปรับให้เข้ากับหมวดหมู่จริง
+          cover_url: item.cover_id
+            ? `https://covers.openlibrary.org/b/id/${item.cover_id}-L.jpg`
+            : "https://via.placeholder.com/100x150",
+        }))
+      );
+
+      setBooks(allBooks);
     } catch (error) {
       console.error("Error fetching books:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -137,39 +68,74 @@ const BooklistScreen = ({ navigation }) => {
       ),
     });
   }, [navigation]);
+
+  // const filteredBooks = books.filter((book) =>
+  //   book.title.toLowerCase().includes(searchText.toLowerCase())
+  // );
+
+  const filteredBooks = books.filter((book) => {
+    const matchesTitle = book.title
+      .toLowerCase()
+      .includes(searchText.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "all" || book.category === selectedCategory;
+    return matchesTitle && matchesCategory;
+  });
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.addButton} onPress={addBooks}>
-        <Text>Add book</Text>
-      </TouchableOpacity>
-
-      <FlatList
-        data={books}
-        keyExtractor={(item, index) => index.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.bookItem}>
-            {/* ถ้าต้องการใส่ภาพปกหนังสือ */}
-            <Image source={{ uri: item.cover_url }} style={styles.coverImage} />
-            <View style={styles.textContainer}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.author}>{item.author}</Text>
-              <Text style={styles.summary}>{item.summary}</Text>
-              <Text style={styles.category}>{item.category}</Text>
-              {/* ตรวจสอบสถานะของหนังสือใน renderItem */}
-              <Text
-                style={[
-                  styles.status,
-                  item.status === "available"
-                    ? styles.available
-                    : styles.borrowed,
-                ]}
-              >
-                {item.status}
-              </Text>
-            </View>
-          </View>
-        )}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="ค้นหาชื่อหนังสือ..."
+        value={searchText}
+        onChangeText={(text) => setSearchText(text)}
       />
+      <Picker
+        selectedValue={selectedCategory}
+        onValueChange={(itemValue) => setSelectedCategory(itemValue)}
+        style={styles.picker}
+      >
+        <Picker.Item label="All Categories" value="all" />
+        <Picker.Item label="Fiction" value="fiction" />
+        <Picker.Item label="General" value="general" />
+        <Picker.Item label="Arts" value="arts" />
+        <Picker.Item label="Animals" value="animals" />
+        <Picker.Item
+          label="Science & Mathematics"
+          value="science&mathematics"
+        />
+        <Picker.Item label="Business & Finance" value="business&finance" />
+        <Picker.Item label="History" value="history" />
+        <Picker.Item label="Cooking" value="cooking" />
+      </Picker>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="60" color="black" />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredBooks}
+          keyExtractor={(item, index) => index.toString()}
+          initialNumToRender={5} // เริ่มด้วยแค่ 5 รายการ
+          maxToRenderPerBatch={10} // โหลดเพิ่มครั้งละ 10
+          windowSize={5} // ขนาดของหน้าต่างที่เรนเดอร์ล่วงหน้า
+          removeClippedSubviews={true} // ตัดอันที่ไม่โชว์บนจอออก
+          renderItem={({ item }) => (
+            <TouchableOpacity onPress={() => alert(item.title)}>
+              <View style={styles.bookItem}>
+                <Image
+                  source={{ uri: item.cover_url }}
+                  style={styles.coverImage}
+                />
+                <View style={styles.textContainer}>
+                  <Text style={styles.title}>{item.title}</Text>
+                  <Text style={styles.author}>{item.author}</Text>
+                  <Text style={styles.category}>{item.category}</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
     </View>
   );
 };
@@ -178,19 +144,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 20,
-    backgroundColor: "#eaeaea", // เปลี่ยนพื้นหลัง
+    backgroundColor: "white",
   },
+  searchInput: {
+    height: 45,
+    borderColor: "#ccc",
+    borderWidth: 1,
+    borderRadius: 20,
+    marginHorizontal: 20,
+
+    padding: 20,
+    fontSize: 16,
+  },
+  picker: {
+    height: 60,
+    marginHorizontal: 10,
+    marginBottom: 20,
+    borderRadius: 8,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   bookItem: {
-    flexDirection: "row", // จัดเรียงแนวนอน
-    backgroundColor: "#ffffff", // สีพื้นหลังของหนังสือ
+    flexDirection: "row",
+    backgroundColor: "#ffffff",
     borderRadius: 10,
     marginBottom: 15,
     padding: 15,
-    shadowColor: "#000", // เงาของกล่อง
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
-    elevation: 3, // สำหรับ Android
+    elevation: 3,
+    marginHorizontal: 10,
   },
   coverImage: {
     width: 100,
@@ -199,39 +189,29 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   textContainer: {
-    flex: 1, // ทำให้ข้อความใช้พื้นที่ที่เหลือ
+    flex: 1,
   },
   title: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333", // สีของชื่อเรื่อง
+    color: "#333",
     marginBottom: 5,
   },
   author: {
     fontSize: 16,
-    color: "#777", // สีของผู้เขียน
+    color: "#777",
     marginBottom: 5,
   },
   summary: {
     fontSize: 14,
-    color: "#555", // สีของสรุป
+    color: "#555",
     marginBottom: 5,
     lineHeight: 20,
   },
   category: {
     fontSize: 14,
-    color: "#2a9d8f", // สีของหมวดหมู่
+    color: "#2a9d8f",
     marginBottom: 5,
-  },
-  status: {
-    fontSize: 14,
-    marginTop: 5,
-  },
-  available: {
-    color: "#2a9d8f", // สีเขียวสำหรับ "available"
-  },
-  borrowed: {
-    color: "#e76f51", // สีแดงสำหรับ "borrowed"
   },
   headerTitleContainer: {
     flexDirection: "row",
@@ -240,7 +220,6 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingRight: 195,
   },
-
   headerTitleText: {
     fontSize: 24,
     fontWeight: "bold",

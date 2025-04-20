@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import LottieView from "lottie-react-native";
 import welcomeAnim from "../assets/welcome.json"; // ไฟล์ checkmark animation
+import * as SecureStore from "expo-secure-store";
 
 const SignInScreen = ({ navigation }) => {
   const [studentId, setStudentId] = useState("");
@@ -21,8 +22,43 @@ const SignInScreen = ({ navigation }) => {
   const [errors, setErrors] = useState({});
   const [alertMessage, setAlertMessage] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
+
+  useEffect(() => {
+    const autoLogin = async () => {
+      try {
+        const savedId = await SecureStore.getItemAsync("studentId");
+        const savedPass = await SecureStore.getItemAsync("password");
+
+        if (savedId && savedPass) {
+          const userRef = doc(db, "user", savedId);
+          const userSnapshot = await getDoc(userRef);
+
+          if (
+            userSnapshot.exists() &&
+            userSnapshot.data().password === savedPass
+          ) {
+            const userData = userSnapshot.data();
+            navigation.replace("Main", { userData });
+          } else {
+            await SecureStore.deleteItemAsync("studentId");
+            await SecureStore.deleteItemAsync("password");
+          }
+        }
+      } catch (error) {
+        console.log("Auto login failed:", error);
+      }
+    };
+
+    autoLogin();
+  }, []);
+
   const handleSubmit = async () => {
     try {
+      // -----------for testing-------------------------------------------------------------------------------
+      setStudentId("65000000");
+      setPassword("11111111");
+      //---------------------------------------------------------------------------------------------------
+
       // ตรวจสอบว่า Student ID และ Password ไม่เป็นค่าว่าง
       let newErrors = {};
 
@@ -55,6 +91,9 @@ const SignInScreen = ({ navigation }) => {
               JSON.stringify(userData)
             );
             setAlertMessage(`Welcome ${userData.username}`);
+
+            await SecureStore.setItemAsync("studentId", studentId);
+            await SecureStore.setItemAsync("password", password); // จริงๆ ใช้ token ดีกว่า
             setModalVisible(true);
             setTimeout(() => {
               navigation.replace("Main", { userData }); // ไปยังหน้าหลัก
