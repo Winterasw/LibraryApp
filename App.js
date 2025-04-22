@@ -14,22 +14,18 @@ import {
 import Setting2Screen from "./components/Setting2Screen";
 import SplashScreen from "./components/SplashScreen";
 import SignInScreen from "./components/SignInScreen";
-import SignUpScreen from "./components/SignUpScreen";
-import ForgotPasswordScreen from "./components/ForgotPasswordScreen";
 import HomeScreen from "./components/HomeScreen";
 import BookingScreen from "./components/BookingScreen";
 import ProfileScreen from "./components/ProfileScreen";
 import RoomDetailScreen from "./components/RoomDetailScreen";
 import SettingScreen from "./components/SettingScreen";
-import OTPVerificationScreen from "./components/OTPVerificationScreen";
-import ResetPasswordScreen from "./components/ResetPasswordScreen";
 import BooklistScreen from "./components/BooklistScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function HomeStack({ route }) {
-  console.log("HomeStack received params:", route.params);
+  // console.log("HomeStack received params:", route.params);
   return (
     <Stack.Navigator
       screenOptions={{
@@ -48,7 +44,11 @@ function HomeStack({ route }) {
         component={HomeScreen}
         initialParams={route?.params}
       />
-      <Stack.Screen name="Booklist" component={BooklistScreen} />
+      <Stack.Screen
+        name="Booklist"
+        component={BooklistScreen}
+        initialParams={route?.params}
+      />
     </Stack.Navigator>
   );
 }
@@ -68,14 +68,7 @@ function ProfileStack({ route }) {
         headerTitle: () => (
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitleText}>Profile</Text>
-            <View style={styles.iconContainer}>
-              {/* <TouchableOpacity
-                style={{ paddingBottom: 5 }}
-                onPress={() => navigation.navigate("Setting2")}
-              >
-                <AntDesign name="setting" size={24} color="black" />
-              </TouchableOpacity> */}
-            </View>
+            <View style={styles.iconContainer}></View>
           </View>
         ),
       }}
@@ -132,23 +125,16 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* <Stack.Screen name="Splash" component={SplashScreen} /> */}
+        <Stack.Screen name="Splash" component={SplashScreen} />
         <Stack.Screen name="SignIn" component={SignInScreen} />
-        {/* <Stack.Screen name="SignUp" component={SignUpScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} /> */}
         <Stack.Screen name="Main" component={MainTabNavigator} />
-        <Stack.Screen
-          name="OTPVerificationScreen"
-          component={OTPVerificationScreen}
-        />
-        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
 
 function MainTabNavigator({ route }) {
-  console.log("MainTabNavigator received params:", route.params);
+  // console.log("MainTabNavigator received params:", route.params);
   return (
     <Tab.Navigator
       initialRouteName="HomeTab"

@@ -6,6 +6,8 @@ import {
   Alert,
   StyleSheet,
   Modal,
+  ActivityIndicator,
+  FlatList,
 } from "react-native";
 import React, { useState, useLayoutEffect, useEffect } from "react";
 import { AntDesign } from "@expo/vector-icons";
@@ -14,16 +16,12 @@ import {
   doc,
   setDoc,
   getDoc,
-  getDocs,
-  collection,
+  arrayRemove,
   onSnapshot,
 } from "firebase/firestore"; // แก้จาก addDoc เป็น setDoc
 import LottieView from "lottie-react-native";
 import successAnim from "../assets/success.json"; // ไฟล์ checkmark animation
-
-const profileImage = {
-  uri: "https://cdn.readawrite.com/articles/5887/5886037/thumbnail/small.gif?1",
-};
+import { useComposedEventHandler } from "react-native-reanimated";
 
 const ProfileScreen = ({ navigation, route }) => {
   // console.log("ProfileScreen: Received route:", JSON.stringify(route, null, 2));
@@ -32,6 +30,12 @@ const ProfileScreen = ({ navigation, route }) => {
   const [updatedUserData, setUpdatedUserData] = useState(null);
   const [confirmModal, setConfirmModal] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [likedBooks, setLikedBooks] = useState([]);
+  const [booksDetails, setBooksDetails] = useState([]);
+  const [deleteBook, setDeleteBook] = useState(false);
+  const [handleDelete, setHandleDelete] = useState("");
+
   const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
 
   useEffect(() => {
@@ -42,8 +46,8 @@ const ProfileScreen = ({ navigation, route }) => {
         if (docSnapshot.exists()) {
           const updatedUserData = docSnapshot.data();
           setUpdatedUserData(updatedUserData);
-          console.log("Real-time Updated  User Data: ", updatedUserData);
-
+          setLikedBooks(updatedUserData.likedbooks);
+          // console.log("Real-time Updated  User Data: ", updatedUserData);
           // ตรวจสอบการจองห้อง แล้วแสดงผล View
           if (updatedUserData.bookingroom || updatedUserData.bookingfloor) {
             setHasBooking(true);
@@ -65,6 +69,8 @@ const ProfileScreen = ({ navigation, route }) => {
       unsubscribeUser();
     };
   }, [userData?.studentID]);
+
+  useEffect(() => {}, []);
 
   const cancelBooking = async () => {
     // animation สำเร็จ
@@ -107,6 +113,7 @@ const ProfileScreen = ({ navigation, route }) => {
       Alert.alert("Failed to cancel booking.");
     }
   }; // ใช้ useLayoutEffect เพื่อเพิ่มปุ่มฟันเฟืองใน header
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -119,6 +126,74 @@ const ProfileScreen = ({ navigation, route }) => {
       ),
     });
   }, [navigation]);
+
+  useEffect(() => {
+    const fetchBooksDetails = async () => {
+      if (!likedBooks.length) return; // ถ้าไม่มีหนังสือใน likedBooks ไม่ต้องค้นหา
+      setLoading(true);
+
+      try {
+        // $encodeURIComponent() ป้องกันข้อผิดพลาดจากอักขระพิเศษในข้อความ
+        const promises = likedBooks.map((title) =>
+          fetch(
+            `https://openlibrary.org/search.json?title=${encodeURIComponent(
+              title
+            )}`
+          )
+            .then((response) => response.json())
+            .then((data) => {
+              // ดึงเฉพาะข้อมูลของหนังสือเล่มแรกในผลการค้นหา
+              if (data.docs && data.docs.length > 0) {
+                const book = data.docs[0];
+                return {
+                  title: book.title,
+                  author: book.author_name
+                    ? book.author_name.join(", ")
+                    : "Unknown Author",
+                  cover_url: book.cover_i
+                    ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
+                    : "https://via.placeholder.com/100x150",
+                };
+              }
+            })
+        );
+
+        const results = await Promise.all(promises); // รอให้ทุกคำสั่งเสร็จสิ้น
+        setBooksDetails(results.filter(Boolean)); // กรองข้อมูลที่ไม่ใช่ null หรือ undefined
+        // console.log("Fetched book details:", results);
+      } catch (error) {
+        console.error("Error fetching book details:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBooksDetails();
+  }, [likedBooks]); // เรียกใช้เมื่อ likedBooks เปลี่ยน
+
+  const handleDeleteBookConfirm = (book) => {
+    setHandleDelete(book);
+    setDeleteBook(true);
+  };
+  const deleteLikedBooks = async () => {
+    const book = handleDelete;
+    console.log(book);
+
+    const userRef = doc(db, "user", userData.studentID);
+
+    try {
+      await setDoc(userRef, { likedbooks: arrayRemove(book) }, { merge: true });
+      console.log(`Deleted "${book}" from liked books`);
+    } catch (error) {
+      console.error("Error adding liked book:", error);
+    }
+
+    setDeleteBook(false);
+    setModalVisible(true);
+    setTimeout(() => {
+      setModalVisible(false);
+    }, 1500);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "white" }}>
@@ -134,7 +209,7 @@ const ProfileScreen = ({ navigation, route }) => {
         }}
       >
         <Image
-          source={profileImage}
+          source={{ uri: userData.profilepic }}
           style={{ width: 100, height: 100, borderRadius: 50 }}
         />
 
@@ -194,6 +269,40 @@ const ProfileScreen = ({ navigation, route }) => {
           <Text style={{ color: "gray", fontSize: 16 }}>ไม่มีการจองห้อง</Text>
         </View>
       )}
+
+      <View style={[{ margin: 20 }]}>
+        <Text style={{ marginVertical: 10, fontSize: 17, fontWeight: "bold" }}>
+          {" "}
+          🩷 หนังสือที่ชอบ
+        </Text>
+        {loading ? (
+          <ActivityIndicator size="large" color="black" />
+        ) : (
+          <FlatList
+            data={booksDetails}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item, index) => index.toString()}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                onPress={() => handleDeleteBookConfirm(item.title)}
+              >
+                <View style={styles.likedbooksCard}>
+                  <Image
+                    source={{ uri: item.cover_url }}
+                    style={styles.likedbooksImage}
+                  />
+                  <View style={styles.textContainer}>
+                    <Text style={styles.likedbooksTitle}>{item.title}</Text>
+                    <Text style={styles.likedbooksAuthor}>{item.author}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+
       {/* Confirm Modal */}
       <Modal
         animationType="fade"
@@ -248,6 +357,44 @@ const ProfileScreen = ({ navigation, route }) => {
               loop={false}
               style={{ width: 120, height: 120 }}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete like books */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={deleteBook}
+        onRequestClose={() => {
+          setDeleteBook(!deleteBook);
+        }}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.modalView}>
+            <Text
+              style={{
+                fontSize: 17,
+                justifyContent: "center",
+                marginBottom: 10,
+              }}
+            >
+              ลบหนังสือออกจากหนังสือที่ชอบ
+            </Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonClose]}
+                onPress={() => setDeleteBook(!deleteBook)}
+              >
+                <Text style={styles.textStyle}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.Twobutton, styles.buttonConfirm]}
+                onPress={() => deleteLikedBooks(likedBooks)}
+              >
+                <Text style={styles.textStyle}>ยืนยัน</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -312,6 +459,36 @@ const styles = StyleSheet.create({
   buttonClose: {
     marginTop: 20,
     backgroundColor: "#adadad",
+  },
+  likedbooksCard: {
+    width: 120,
+    marginRight: 10,
+    alignItems: "center",
+  },
+
+  likedbooksImage: {
+    width: 80,
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 5,
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+
+  likedbooksTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+
+  likedbooksAuthor: {
+    fontSize: 10,
+    color: "#777",
+    textAlign: "center",
   },
 });
 

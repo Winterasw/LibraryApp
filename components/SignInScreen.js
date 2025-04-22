@@ -54,11 +54,6 @@ const SignInScreen = ({ navigation }) => {
 
   const handleSubmit = async () => {
     try {
-      // -----------for testing-------------------------------------------------------------------------------
-      setStudentId("65000000");
-      setPassword("11111111");
-      //---------------------------------------------------------------------------------------------------
-
       // ตรวจสอบว่า Student ID และ Password ไม่เป็นค่าว่าง
       let newErrors = {};
 
@@ -141,12 +136,6 @@ const SignInScreen = ({ navigation }) => {
           >
             <Text style={AuthStyles.activeText}>Sign in</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={AuthStyles.tabButton}
-            onPress={() => navigation.navigate("SignUp")}
-          >
-            <Text style={AuthStyles.inactiveText}>Sign up</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -184,11 +173,6 @@ const SignInScreen = ({ navigation }) => {
           <Text style={AuthStyles.errorText}>{errors.password}</Text>
         )}
       </View>
-
-      {/* Forgot Password Button */}
-      <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
-        <Text style={AuthStyles.forgotPassword}>Forgot password?</Text>
-      </TouchableOpacity>
 
       {/* Login Button */}
       <TouchableOpacity onPress={handleSubmit} style={AuthStyles.button}>

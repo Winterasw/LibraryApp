@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   Alert,
   Modal,
+  Image,
+  ActivityIndicator,
 } from "react-native";
 import { db } from "./firebaseConfig";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot, Timestamp } from "firebase/firestore";
 import { AntDesign } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import successAnim from "../assets/success.json"; // ไฟล์ checkmark animation
@@ -18,6 +20,10 @@ const RoomDetailScreen = ({ route, navigation }) => {
   //   "RoomDetailScreen: Received route:",
   //   JSON.stringify(route, null, 2)
   // );
+
+  const defaultImage =
+    "https://developers.google.com/static/maps/documentation/streetview/images/error-image-generic.png";
+
   const userData = route.params.userData;
   const room = route.params.room;
   const [bookings, setBookings] = useState([]);
@@ -26,6 +32,9 @@ const RoomDetailScreen = ({ route, navigation }) => {
   const [timeConfirm, setTimeConfirm] = useState(""); // ค่า "" เริ่มต้นเพราะถ้า null จะอ่านค่า useEffect ไม่ได้
   const [alertModal, setAlertModal] = useState(false);
   const [updatedUserData, setUpdatedUserData] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [isBookingExpired, setIsBookingExpired] = useState(false);
+
   // ฟังก์ชั่นอ่านค่า parameter จาก timeslot
   useEffect(() => {
     if (timeConfirm !== null) {
@@ -173,10 +182,34 @@ const RoomDetailScreen = ({ route, navigation }) => {
     }, 2500); // 2000 = 2 วินาที
   };
 
+  const checkExpiration = async () => {
+    const currentTime = Timestamp.now(); // เวลาปัจจุบันใน UTC
+    const bookingEnd = Timestamp.fromDate(new Date("2025-04-23T12:00:00Z")); // เวลาสิ้นสุด
+    console.log(currentTime.seconds);
+
+    if (currentTime.seconds >= bookingEnd.seconds) {
+      console.log("Expired");
+      cancelBooking();
+    } else {
+      console.log("Still counting...");
+    }
+  };
+
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     checkExpiration();
+  //   }, 2000);
+  //   return () => clearInterval(interval); // ยกเลิก interval เมื่อ component ถูก unmount
+  // }, []);
+
   return (
     <View style={styles.container}>
       {/* ข้อมูลห้องและการจอง */}
       <View style={styles.container1}>
+        <Text style={[styles.mainText, styles.mainHeaderText]}>
+          {room.roomname}
+        </Text>
+
         <Text style={styles.mainText}>{`Floor: ${room.floor}`}</Text>
         <Text
           style={styles.mainText}
@@ -189,6 +222,11 @@ const RoomDetailScreen = ({ route, navigation }) => {
           room.capacity > 10 ? "ใหญ่" : "เล็ก"
         } `}</Text>
         <Text style={styles.mainText}>{` ${room.capacity} คน`}</Text>
+
+        <Image
+          source={{ uri: room.url || defaultImage }}
+          style={styles.image}
+        />
       </View>
 
       {/* ปุ่มเปิด Modal */}
@@ -424,6 +462,13 @@ const styles = {
   },
   buttonConfirm: {
     backgroundColor: "#ED008C",
+  },
+  image: {
+    width: "100%",
+    height: "60%",
+    resizeMode: "cover",
+    marginTop: 15,
+    borderRadius: 15,
   },
 };
 

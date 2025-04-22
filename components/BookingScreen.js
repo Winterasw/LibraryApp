@@ -12,7 +12,7 @@ import { db } from "./firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
 const BookingScreen = ({ navigation, route }) => {
-  console.log("BookingScreen: Received route:", JSON.stringify(route, null, 2));
+  // console.log("BookingScreen: Received route:", JSON.stringify(route, null, 2));
 
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("floor4");
@@ -88,9 +88,11 @@ const BookingScreen = ({ navigation, route }) => {
             >
               <View style={styles.roomBox}>
                 <View style={styles.leftRoomBox}>
-                  <Text style={styles.contentText}>ชั้น {room.floor}</Text>
+                  <Text style={[styles.contentText, { fontWeight: "bold" }]}>
+                    {room.roomname}
+                  </Text>
                   <Text style={styles.contentText}>
-                    เลขห้อง {room.room_number}
+                    ห้อง {room.room_number} ชั้น {room.floor}
                   </Text>
                 </View>
                 <View style={styles.rightRoomBox}>

@@ -13,13 +13,13 @@ import React, { useState, useEffect } from "react";
 import { db } from "./firebaseConfig";
 import { doc, setDoc } from "firebase/firestore"; // แก้จาก addDoc เป็น setDoc
 import { Ionicons, AntDesign } from "@expo/vector-icons";
-import { shadow } from "react-native-paper";
 
 const HomeScreen = ({ navigation, route }) => {
-  console.log("HomeScreen: Received route:", JSON.stringify(route, null, 2));
+  // console.log("HomeScreen: Received route:", JSON.stringify(route, null, 2));
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recommendedBooks, setRecommendedBooks] = useState([]);
+  const [recentChanges, setRecentChanges] = useState([]);
   // ตรวจสอบและดึงค่า userData
   const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
   useEffect(() => {
@@ -157,6 +157,31 @@ const HomeScreen = ({ navigation, route }) => {
           console.error("Error fetching recommended books:", error);
         }
       };
+
+      const fetchB = async () => {
+        try {
+          const response = await fetch(
+            "https://openlibrary.org/subjects/juvenile.json?limit=10"
+          );
+          const data = await response.json();
+
+          const booksData = data.works.map((item) => ({
+            title: item.title,
+            author: item.authors
+              ? item.authors.map((author) => author.name).join(", ")
+              : "Unknown Author",
+            summary: item.description || "No description available",
+            cover_url: item.cover_id
+              ? `https://covers.openlibrary.org/b/id/${item.cover_id}-L.jpg`
+              : "https://via.placeholder.com/100x150",
+          }));
+
+          setRecentChanges(booksData);
+        } catch (error) {
+          console.error("Error fetching recommended books:", error);
+        }
+      };
+      fetchB();
       fetchRecommendedBooks();
       setBooks(allBooks);
     } catch (error) {
@@ -187,7 +212,9 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
 
         <View style={styles.topIconContainer}>
-          <TouchableOpacity onPress={() => navigation.navigate("Booklist")}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("Booklist", { userData })}
+          >
             <View style={styles.bookIcon}>
               <Ionicons name="book" size={35} color="black" />
             </View>
@@ -199,7 +226,7 @@ const HomeScreen = ({ navigation, route }) => {
           <Text style={styles.addButtonText}>เพิ่มข้อมูลจองห้อง</Text>
         </TouchableOpacity> */}
         <View style={[{ margin: 20 }]}>
-          <Text style={styles.sectionTitle}>📚 หนังสือแนะนำ</Text>
+          <Text style={styles.sectionTitle}>🔥 หนังสือยอดนิยม</Text>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="50" color="black" />
@@ -207,6 +234,30 @@ const HomeScreen = ({ navigation, route }) => {
           ) : (
             <FlatList
               data={recommendedBooks}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.recommendCard}>
+                  <Image
+                    source={{ uri: item.cover_url }}
+                    style={styles.recommendImage}
+                  />
+
+                  <Text style={styles.recommendTitle}>{item.title}</Text>
+                  <Text style={styles.recommendAuthor}>{item.author}</Text>
+                </View>
+              )}
+            />
+          )}
+          <Text style={styles.sectionTitle}>📚 หนังสือแนะนำ</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="50" color="black" />
+            </View>
+          ) : (
+            <FlatList
+              data={recentChanges}
               horizontal
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item, index) => index.toString()}
@@ -238,8 +289,7 @@ const styles = StyleSheet.create({
   topIconContainer: {
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 50,
-    marginBottom: 20,
+    marginTop: 40,
   },
   bookIcon: {
     justifyContent: "center",
