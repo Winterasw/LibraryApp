@@ -35,7 +35,7 @@ const defaultStackScreenOptions = {
   },
   headerTintColor: "black", // Color of back button and title (if not customized)
   headerTitleAlign: "center", // Ensure title is centered by default
-  headerBackTitleVisible: false, // <<< Add this to hide back button label globally for stacks
+  headerBackTitleVisible: false,
 };
 
 function HomeStack({ route }) {
@@ -52,7 +52,14 @@ function HomeStack({ route }) {
         name="Booklist"
         component={BooklistScreen}
         initialParams={route?.params}
-        options={{ headerTitle: "Book Shelf" }} // Set title directly here
+        options={{
+          headerTitle: () => (
+            <View style={styles.headerTitleContainer}>
+              {/* Add an empty view on the left for balance if needed, or adjust padding */}
+              <Text style={styles.headerTitleText}>Books</Text>
+            </View>
+          ),
+        }}
       />
     </Stack.Navigator>
   );
@@ -66,11 +73,9 @@ function ProfileStack({ route }) {
         component={ProfileScreen}
         initialParams={route?.params}
         options={{
-          // Use options here for screen-specific settings
           headerTitle: () => (
             <Text style={styles.headerTitleText}>Profile</Text>
-          ), // Simple title, navigator handles centering
-          // headerRight is defined in ProfileScreen using useLayoutEffect
+          ),
         }}
       />
       <Stack.Screen
@@ -109,7 +114,14 @@ function BookingStack({ route }) {
         name="RoomDetail"
         component={RoomDetailScreen}
         initialParams={route?.params}
-        options={{ headerTitle: "Room Details" }} // Simple title
+        options={{
+          headerTitle: () => (
+            <View style={styles.headerTitleContainer}>
+              {/* Add an empty view on the left for balance if needed, or adjust padding */}
+              <Text style={styles.headerTitleText}>Room Details</Text>
+            </View>
+          ),
+        }}
       />
     </Stack.Navigator>
   );

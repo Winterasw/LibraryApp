@@ -95,16 +95,6 @@ const BooklistScreen = ({ navigation, route }) => {
     fetchBooks();
   }, []);
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerTitle: () => (
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitleText}>Book Shelf</Text>
-        </View>
-      ),
-    });
-  }, [navigation]);
-
   const filteredBooks = books.filter((book) => {
     const matchesTitle = book.title
       .toLowerCase()
@@ -146,22 +136,26 @@ const BooklistScreen = ({ navigation, route }) => {
         value={searchText}
         onChangeText={(text) => setSearchText(text)}
       />
-      <Picker
-        selectedValue={selectedCategory}
-        onValueChange={(itemValue) => setSelectedCategory(itemValue)}
-        style={styles.picker}
-      >
-        <Picker.Item label="All Categories" value="all" />
-        <Picker.Item label="Fiction" value="fiction" />
-        <Picker.Item label="Arts" value="arts" />
-        <Picker.Item label="Animals" value="animals" />
-        <Picker.Item
-          label="Science & Mathematics"
-          value="science&mathematics"
-        />
-        <Picker.Item label="History" value="history" />
-        <Picker.Item label="Cooking" value="cooking" />
-      </Picker>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedCategory}
+          onValueChange={(itemValue) => setSelectedCategory(itemValue)}
+          style={styles.picker}
+          itemStyle={styles.pickerItem} // Style for individual items (iOS)
+        >
+          <Picker.Item label="All Categories" value="all" />
+          <Picker.Item label="Fiction" value="fiction" />
+          <Picker.Item label="Arts" value="arts" />
+          <Picker.Item label="Animals" value="animals" />
+          <Picker.Item
+            label="Science & Mathematics"
+            value="science&mathematics"
+          />
+          <Picker.Item label="History" value="history" />
+          <Picker.Item label="Cooking" value="cooking" />
+          <Picker.Item label="Business & Finance" value="business&finance" />
+        </Picker>
+      </View>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="60" color="black" />
@@ -224,15 +218,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 20,
     marginHorizontal: 20,
-
     padding: 20,
     fontSize: 17,
   },
+  pickerContainer: {
+    marginTop: 20,
+    marginHorizontal: 20,
+    marginBottom: 15,
+  },
   picker: {
     height: 60,
-    marginHorizontal: 10,
-    marginBottom: 20,
-    borderRadius: 8,
+    width: "100%",
+    color: "#333",
+  },
+  pickerItem: {
+    height: 50,
+    fontSize: 16,
   },
 
   loadingContainer: {
