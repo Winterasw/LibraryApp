@@ -230,13 +230,14 @@ const RoomDetailScreen = ({ route, navigation }) => {
       </View>
 
       {/* ปุ่มเปิด Modal */}
-      <TouchableOpacity
-        style={[styles.button, styles.buttonOpen]}
-        onPress={() => setModalVisible(true)}
-      >
-        <Text style={styles.textStyle}>Show Time</Text>
-      </TouchableOpacity>
-
+      <View style={styles.container3}>
+        <TouchableOpacity
+          style={[styles.button, styles.buttonOpen]}
+          onPress={() => setModalVisible(true)}
+        >
+          <Text style={styles.textStyle}>Show Time</Text>
+        </TouchableOpacity>
+      </View>
       {/* first Modal */}
       <Modal
         animationType="fade"
@@ -358,7 +359,7 @@ const RoomDetailScreen = ({ route, navigation }) => {
 };
 
 const styles = {
-  container: { flex: 1, padding: 30, backgroundColor: "white" },
+  container: { flex: 1, paddingHorizontal: 30, backgroundColor: "white" },
   container1: {
     backgroundColor: "#F4F3F3",
     alignItems: "center",
@@ -377,6 +378,11 @@ const styles = {
     paddingVertical: 20,
     paddingHorizontal: 50,
     marginBottom: 15,
+  },
+  container3: {
+    alignItems: "center",
+    flex: 1,
+    marginBottom: 40,
   },
   timeSlot: {
     flexDirection: "row",
@@ -397,6 +403,7 @@ const styles = {
     padding: 12,
     elevation: 2,
     paddingHorizontal: 20,
+    width: "80%",
   },
   buttonOpen: {
     backgroundColor: "#ED008C",

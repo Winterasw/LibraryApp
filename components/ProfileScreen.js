@@ -15,76 +15,254 @@ import { db } from "./firebaseConfig";
 import {
   doc,
   setDoc,
-  getDoc,
+  getDoc, // Keep getDoc for initial fetch if needed, but prioritize onSnapshot
   arrayRemove,
   onSnapshot,
-} from "firebase/firestore"; // แก้จาก addDoc เป็น setDoc
+} from "firebase/firestore";
 import LottieView from "lottie-react-native";
 import successAnim from "../assets/success.json"; // ไฟล์ checkmark animation
-import { useComposedEventHandler } from "react-native-reanimated";
+// Removed unused import: import { useComposedEventHandler } from "react-native-reanimated";
 
 const ProfileScreen = ({ navigation, route }) => {
-  // console.log("ProfileScreen: Received route:", JSON.stringify(route, null, 2));
-
   const [hasBooking, setHasBooking] = useState(false);
   const [updatedUserData, setUpdatedUserData] = useState(null);
+  const [roomDataRealtime, setRoomDataRealtime] = useState(null); // <-- State for real-time room data
   const [confirmModal, setConfirmModal] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Loading for liked books
   const [likedBooks, setLikedBooks] = useState([]);
   const [booksDetails, setBooksDetails] = useState([]);
   const [deleteBook, setDeleteBook] = useState(false);
   const [handleDelete, setHandleDelete] = useState("");
 
-  const userData = route.params?.userData; // ใช้ Optional Chaining (?.)
+  const userData = route.params?.userData; // Store initial data (Now just userData)
 
+  // --- useEffect for User Data ---
   useEffect(() => {
-    const userRef = doc(db, "user", userData.studentID);
+    if (!userData?.studentID) {
+      // Changed from initialUserData
+      console.error("User data or studentID is missing.");
+      // Handle missing initial data, maybe navigate back or show error
+      return;
+    }
+    const userRef = doc(db, "user", userData.studentID); // Changed from initialUserData
     const unsubscribeUser = onSnapshot(
       userRef,
       (docSnapshot) => {
         if (docSnapshot.exists()) {
-          const updatedUserData = docSnapshot.data();
-          setUpdatedUserData(updatedUserData);
-          setLikedBooks(updatedUserData.likedbooks);
-          // console.log("Real-time Updated  User Data: ", updatedUserData);
-          // ตรวจสอบการจองห้อง แล้วแสดงผล View
-          if (updatedUserData.bookingroom || updatedUserData.bookingfloor) {
-            setHasBooking(true);
-          } else {
-            setHasBooking(false);
-          }
+          const data = docSnapshot.data();
+          setUpdatedUserData(data);
+          setLikedBooks(data.likedbooks || []); // Ensure likedBooks is always an array
+          // Check booking status based on updated data
+          setHasBooking(!!(data.bookingroom && data.bookingstart)); // Simpler check
         } else {
-          console.log("Document does not exist");
+          console.log("User document does not exist:", userData.studentID); // Changed from initialUserData
+          setUpdatedUserData(null); // Clear data if document is deleted
           setHasBooking(false);
+          setRoomDataRealtime(null); // Clear room data if user doc is gone
         }
       },
       (error) => {
-        console.error("Error listening to document:", error);
+        console.error("Error listening to user document:", error);
+        // Optionally show an error message to the user
       }
     );
 
-    // คืนค่าฟังก์ชัน unsubscribe เมื่อ component ถูก unmount
+    return () => unsubscribeUser(); // Cleanup listener on unmount
+  }, [userData?.studentID]); // Depend only on studentID from route params (Now just userData)
+
+  // --- useEffect for Room Data (depends on updatedUserData) ---
+  useEffect(() => {
+    let unsubscribeRoom = null;
+    // Only listen if there's a booking room ID in the updated user data
+    if (updatedUserData?.bookingroom) {
+      const roomRef = doc(db, "meeting_rooms", updatedUserData.bookingroom);
+      unsubscribeRoom = onSnapshot(
+        roomRef,
+        (roomSnap) => {
+          if (roomSnap.exists()) {
+            setRoomDataRealtime(roomSnap.data());
+            // console.log("Real-time Room Data:", roomSnap.data());
+          } else {
+            console.warn(
+              "Booked room document does not exist:",
+              updatedUserData.bookingroom
+            );
+            setRoomDataRealtime(null); // Clear room data if it doesn't exist
+            // Optional: Maybe automatically clear the user's booking info here if the room is gone
+          }
+        },
+        (error) => {
+          console.error("Error listening to room document:", error);
+          setRoomDataRealtime(null); // Clear on error
+        }
+      );
+    } else {
+      // If user has no booking room, clear the realtime room data
+      setRoomDataRealtime(null);
+    }
+
+    // Cleanup function for the room listener
     return () => {
-      unsubscribeUser();
+      if (unsubscribeRoom) {
+        unsubscribeRoom();
+      }
     };
-  }, [userData?.studentID]);
+  }, [updatedUserData?.bookingroom]); // Re-run only when the booking room changes
 
-  useEffect(() => {}, []);
+  // --- useEffect for Liked Books Details ---
+  useEffect(() => {
+    const fetchBooksDetails = async () => {
+      if (!likedBooks || likedBooks.length === 0) {
+        setBooksDetails([]); // Clear details if no liked books
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const promises = likedBooks.map((title) =>
+          fetch(
+            `https://openlibrary.org/search.json?title=${encodeURIComponent(
+              title
+            )}&limit=1` // Add limit=1 for efficiency
+          )
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.docs && data.docs.length > 0) {
+                const book = data.docs[0];
+                return {
+                  title: book.title,
+                  author: book.author_name
+                    ? book.author_name.join(", ")
+                    : "Unknown Author",
+                  cover_url: book.cover_i
+                    ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
+                    : "https://via.placeholder.com/100x150", // Default placeholder
+                };
+              }
+              return null; // Return null if book not found
+            })
+            .catch((err) => {
+              console.error(`Error fetching details for "${title}":`, err);
+              return null; // Return null on fetch error
+            })
+        );
 
+        const results = await Promise.all(promises);
+        setBooksDetails(results.filter(Boolean)); // Filter out null results
+      } catch (error) {
+        console.error("Error fetching book details:", error);
+        setBooksDetails([]); // Clear details on major error
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBooksDetails();
+  }, [likedBooks]); // Re-run when likedBooks array changes
+
+  // --- Cancel Booking Function ---
   const cancelBooking = async () => {
-    // animation สำเร็จ
-    setModalVisible(true);
-    setTimeout(() => {
-      setModalVisible(false);
-    }, 2500);
-    setConfirmModal(false);
+    // --- Pre-checks ---
+    if (!updatedUserData?.studentID) {
+      console.error(
+        "User data or studentID is not available for cancellation."
+      );
+      Alert.alert("ข้อผิดพลาด", "ข้อมูลผู้ใช้ไม่พร้อมใช้งาน");
+      setConfirmModal(false);
+      return;
+    }
+    if (!updatedUserData.bookingroom || !updatedUserData.bookingstart) {
+      console.log("No active booking found in user data.");
+      Alert.alert("ไม่มีการจอง", "ไม่พบข้อมูลการจองในโปรไฟล์ของคุณ");
+      setConfirmModal(false);
+      return;
+    }
+    // Check if real-time room data is loaded
+    if (!roomDataRealtime) {
+      console.warn(
+        "Room data not loaded yet or room doesn't exist. Trying to clear user booking anyway."
+      );
+      // Optionally wait a bit or proceed to clear user data only
+      // Alert.alert("กรุณารอสักครู่", "กำลังโหลดข้อมูลห้อง...");
+      // setConfirmModal(false);
+      // return;
+
+      // --- Attempt to clear user booking even if room data is missing ---
+      try {
+        const userRef = doc(db, "user", updatedUserData.studentID);
+        await setDoc(
+          userRef,
+          {
+            bookingroom: "",
+            bookingstart: "",
+            bookingend: "",
+            bookingfloor: "",
+          },
+          { merge: true }
+        );
+        console.log("User booking info cleared (room data was missing).");
+        setConfirmModal(false);
+        setModalVisible(true); // Show success animation
+        setTimeout(() => setModalVisible(false), 2500);
+        Alert.alert(
+          "สำเร็จ",
+          "ข้อมูลการจองของคุณถูกล้างแล้ว (ไม่พบข้อมูลห้อง)"
+        );
+      } catch (error) {
+        console.error(
+          "Error clearing user booking info when room data missing:",
+          error
+        );
+        setConfirmModal(false);
+        Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถล้างข้อมูลการจองของผู้ใช้ได้");
+      }
+      return; // Exit after attempting to clear user data
+    }
+
+    // --- Proceed with cancellation ---
+    setConfirmModal(false); // Close confirmation modal first
 
     try {
-      const userRef = doc(db, "user", userData.studentID);
-      const roomRef = doc(db, "meeting_rooms", userData.bookingroom);
-      const roomData = await getDoc(roomRef);
-      const roomBookings = roomData.data().bookings;
+      const userRef = doc(db, "user", updatedUserData.studentID);
+      const roomRef = doc(db, "meeting_rooms", updatedUserData.bookingroom); // Path is correct now
+
+      // Use the real-time room data
+      const currentRoomBookings = roomDataRealtime.bookings;
+
+      // Check if the specific booking slot exists in the real-time data
+      if (
+        !currentRoomBookings ||
+        !currentRoomBookings[updatedUserData.bookingstart]
+      ) {
+        console.warn(
+          "Booking slot not found in real-time room data:",
+          updatedUserData.bookingstart
+        );
+        // Still clear the user's booking info as it might be outdated
+        await setDoc(
+          userRef,
+          {
+            bookingroom: "",
+            bookingstart: "",
+            bookingend: "",
+            bookingfloor: "",
+          },
+          { merge: true }
+        );
+        console.log(
+          "User booking info cleared (booking slot missing in room)."
+        );
+        setModalVisible(true); // Show success animation
+        setTimeout(() => setModalVisible(false), 2500);
+        Alert.alert(
+          "สำเร็จ",
+          "ข้อมูลการจองของคุณถูกล้างแล้ว (แต่ไม่พบช่องเวลาในข้อมูลห้องล่าสุด)"
+        );
+        return; // Exit after clearing user data
+      }
+
+      // 1. Update user document first (to immediately reflect change in UI)
       await setDoc(
         userRef,
         {
@@ -96,29 +274,78 @@ const ProfileScreen = ({ navigation, route }) => {
         { merge: true }
       );
 
-      const updatedBookings = {
-        ...roomBookings,
-        [userData.bookingstart]: {
-          ...roomBookings[userData.bookingstart],
+      // 2. Prepare updated bookings for the room using real-time data
+      const updatedRoomBookings = {
+        ...currentRoomBookings,
+        [updatedUserData.bookingstart]: {
+          ...currentRoomBookings[updatedUserData.bookingstart], // Keep existing slot data
           status: "available",
-          userId: null,
+          userId: null, // Clear the user ID
         },
       };
 
-      await setDoc(roomRef, { bookings: updatedBookings }, { merge: true });
+      // 3. Update room document
+      await setDoc(roomRef, { bookings: updatedRoomBookings }, { merge: true });
 
-      console.log("Booking canceled successfully!");
+      console.log("Booking canceled successfully using real-time data!");
+      setModalVisible(true); // Show success animation
+      setTimeout(() => setModalVisible(false), 2500);
+      // No need for another alert, animation is enough
     } catch (error) {
       console.error("Error canceling booking:", error);
-      Alert.alert("Failed to cancel booking.");
+      // Hide animation modal if error occurs during cancellation steps
+      setModalVisible(false);
+      Alert.alert(
+        "เกิดข้อผิดพลาด",
+        "ไม่สามารถยกเลิกการจองได้ กรุณาลองใหม่อีกครั้ง"
+      );
     }
-  }; // ใช้ useLayoutEffect เพื่อเพิ่มปุ่มฟันเฟืองใน header
+  };
 
+  // --- Delete Liked Book Functions ---
+  const handleDeleteBookConfirm = (bookTitle) => {
+    setHandleDelete(bookTitle); // Store the title to be deleted
+    setDeleteBook(true); // Open confirmation modal
+  };
+
+  const deleteLikedBooks = async () => {
+    const bookTitleToDelete = handleDelete; // Get the title from state
+    if (!bookTitleToDelete || !updatedUserData?.studentID) {
+      console.error("Book title or user ID missing for deletion.");
+      setDeleteBook(false);
+      return;
+    }
+
+    const userRef = doc(db, "user", updatedUserData.studentID);
+    setDeleteBook(false); // Close confirmation modal
+
+    try {
+      await setDoc(
+        userRef,
+        { likedbooks: arrayRemove(bookTitleToDelete) }, // Use arrayRemove with the specific title
+        { merge: true }
+      );
+      console.log(`Deleted "${bookTitleToDelete}" from liked books`);
+      setHandleDelete(""); // Clear the stored title
+
+      // Show success animation
+      setModalVisible(true);
+      setTimeout(() => {
+        setModalVisible(false);
+      }, 1500);
+    } catch (error) {
+      console.error("Error deleting liked book:", error);
+      Alert.alert("เกิดข้อผิดพลาด", "ไม่สามารถลบหนังสือที่ชอบได้");
+    }
+  };
+
+  // --- Header Button ---
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
-          style={{ width: "170%", marginRight: 20, backgroundColor: "Green" }}
+          // style={{ width: "170%", marginRight: 20, backgroundColor: "Green" }} // Adjusted style for better touch area
+          style={{ padding: 10, marginRight: 5 }} // Simpler padding
           onPress={() => navigation.navigate("Setting")}
         >
           <AntDesign name="setting" size={27} color="black" />
@@ -127,162 +354,75 @@ const ProfileScreen = ({ navigation, route }) => {
     });
   }, [navigation]);
 
-  useEffect(() => {
-    const fetchBooksDetails = async () => {
-      if (!likedBooks.length) return; // ถ้าไม่มีหนังสือใน likedBooks ไม่ต้องค้นหา
-      setLoading(true);
+  // --- Render ---
+  // Display updated data if available, otherwise use data from route params
+  const displayData = updatedUserData || userData;
 
-      try {
-        // $encodeURIComponent() ป้องกันข้อผิดพลาดจากอักขระพิเศษในข้อความ
-        const promises = likedBooks.map((title) =>
-          fetch(
-            `https://openlibrary.org/search.json?title=${encodeURIComponent(
-              title
-            )}`
-          )
-            .then((response) => response.json())
-            .then((data) => {
-              // ดึงเฉพาะข้อมูลของหนังสือเล่มแรกในผลการค้นหา
-              if (data.docs && data.docs.length > 0) {
-                const book = data.docs[0];
-                return {
-                  title: book.title,
-                  author: book.author_name
-                    ? book.author_name.join(", ")
-                    : "Unknown Author",
-                  cover_url: book.cover_i
-                    ? `https://covers.openlibrary.org/b/id/${book.cover_i}-L.jpg`
-                    : "https://via.placeholder.com/100x150",
-                };
-              }
-            })
-        );
-
-        const results = await Promise.all(promises); // รอให้ทุกคำสั่งเสร็จสิ้น
-        setBooksDetails(results.filter(Boolean)); // กรองข้อมูลที่ไม่ใช่ null หรือ undefined
-        // console.log("Fetched book details:", results);
-      } catch (error) {
-        console.error("Error fetching book details:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchBooksDetails();
-  }, [likedBooks]); // เรียกใช้เมื่อ likedBooks เปลี่ยน
-
-  const handleDeleteBookConfirm = (book) => {
-    setHandleDelete(book);
-    setDeleteBook(true);
-  };
-  const deleteLikedBooks = async () => {
-    const book = handleDelete;
-    console.log(book);
-
-    const userRef = doc(db, "user", userData.studentID);
-
-    try {
-      await setDoc(userRef, { likedbooks: arrayRemove(book) }, { merge: true });
-      console.log(`Deleted "${book}" from liked books`);
-    } catch (error) {
-      console.error("Error adding liked book:", error);
-    }
-
-    setDeleteBook(false);
-    setModalVisible(true);
-    setTimeout(() => {
-      setModalVisible(false);
-    }, 1500);
-  };
+  if (!displayData) {
+    // Show loading indicator or a placeholder if no data is available at all
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#ED008C" />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "white" }}>
-      {/* ส่วนโปรไฟล์ */}
-      <View
-        style={{
-          backgroundColor: "#f5f5f5",
-          marginHorizontal: 20,
-          marginTop: 20,
-          borderRadius: 15,
-          padding: 20,
-          alignItems: "center",
-        }}
-      >
+      {/* Profile Info */}
+      <View style={styles.profileCard}>
         <Image
-          source={{ uri: userData.profilepic }}
-          style={{ width: 100, height: 100, borderRadius: 50 }}
+          source={{
+            uri: displayData.profilepic || "https://via.placeholder.com/100",
+          }} // Add placeholder
+          style={styles.profileImage}
         />
-
-        <Text style={{ fontSize: 20, fontWeight: "bold", marginTop: 10 }}>
-          {userData.username}
-        </Text>
-        <Text style={{ fontSize: 20 }}>{userData.studentID}</Text>
-        <Text style={{ color: "gray", marginTop: 1 }}>📧 {userData.email}</Text>
+        <Text style={styles.profileUsername}>{displayData.username}</Text>
+        <Text style={styles.profileStudentID}>{displayData.studentID}</Text>
+        <Text style={styles.profileEmail}>📧 {displayData.email}</Text>
       </View>
 
-      {/* แสดงข้อมูลการจองห้อง */}
+      {/* Booking Info - Use hasBooking state derived from updatedUserData */}
       {hasBooking ? (
-        <View
-          style={{
-            backgroundColor: "#ED008C",
-            marginHorizontal: 20,
-            marginTop: 20,
-            borderRadius: 15,
-            padding: 20,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "white", fontSize: 16 }}>ห้องที่จอง</Text>
-          <Text style={{ color: "white", fontSize: 16 }}>
-            เวลา {updatedUserData.bookingstart} - {updatedUserData.bookingend}
+        <View style={styles.bookingCard}>
+          <Text style={styles.bookingHeader}>ห้องที่จอง</Text>
+          <Text style={styles.bookingText}>
+            {/* Display data from updatedUserData */}
+            เวลา {updatedUserData?.bookingstart} - {updatedUserData?.bookingend}
           </Text>
-          <Text style={{ color: "white", fontSize: 16 }}>
-            เลขที่ห้อง {updatedUserData.bookingroom} ชั้น{" "}
-            {updatedUserData.bookingfloor}
+          <Text style={styles.bookingText}>
+            เลขที่ห้อง {updatedUserData?.bookingroom} ชั้น{" "}
+            {updatedUserData?.bookingfloor}
           </Text>
-
-          {/* ปุ่มยกเลิกการจอง */}
+          {/* Cancel Button */}
           <TouchableOpacity
             onPress={() => setConfirmModal(true)}
-            style={{
-              marginTop: 15,
-              backgroundColor: "white",
-              paddingVertical: 10,
-              paddingHorizontal: 20,
-              borderRadius: 20,
-            }}
+            style={styles.cancelButton}
           >
-            <Text style={{ color: "#e91e63", fontWeight: "bold" }}>
-              ยกเลิกการจองห้อง
-            </Text>
+            <Text style={styles.cancelButtonText}>ยกเลิกการจองห้อง</Text>
           </TouchableOpacity>
         </View>
       ) : (
-        <View
-          style={{
-            flex: 1,
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: 20,
-          }}
-        >
-          <Text style={{ color: "gray", fontSize: 16 }}>ไม่มีการจองห้อง</Text>
+        <View style={styles.noBookingContainer}>
+          <Text style={styles.noBookingText}>ไม่มีการจองห้อง</Text>
         </View>
       )}
 
-      <View style={[{ margin: 20 }]}>
-        <Text style={{ marginVertical: 10, fontSize: 17, fontWeight: "bold" }}>
-          {" "}
-          🩷 หนังสือที่ชอบ
-        </Text>
+      {/* Liked Books Section */}
+      <View style={styles.likedBooksSection}>
+        <Text style={styles.likedBooksHeader}>🩷 หนังสือที่ชอบ</Text>
         {loading ? (
-          <ActivityIndicator size="large" color="black" />
+          <ActivityIndicator
+            size="large"
+            color="black"
+            style={{ marginTop: 20 }}
+          />
         ) : (
           <FlatList
             data={booksDetails}
             horizontal
             showsHorizontalScrollIndicator={false}
-            keyExtractor={(item, index) => index.toString()}
+            keyExtractor={(item, index) => `${item.title}-${index}`} // More robust key
             renderItem={({ item }) => (
               <TouchableOpacity
                 onPress={() => handleDeleteBookConfirm(item.title)}
@@ -293,46 +433,47 @@ const ProfileScreen = ({ navigation, route }) => {
                     style={styles.likedbooksImage}
                   />
                   <View style={styles.textContainer}>
-                    <Text style={styles.likedbooksTitle}>{item.title}</Text>
-                    <Text style={styles.likedbooksAuthor}>{item.author}</Text>
+                    <Text style={styles.likedbooksTitle} numberOfLines={2}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.likedbooksAuthor} numberOfLines={1}>
+                      {item.author}
+                    </Text>
                   </View>
                 </View>
               </TouchableOpacity>
             )}
+            ListEmptyComponent={
+              <Text style={styles.noLikedBooksText}>ยังไม่มีหนังสือที่ชอบ</Text>
+            } // Show message if list is empty
           />
         )}
       </View>
 
-      {/* Confirm Modal */}
+      {/* --- Modals --- */}
+
+      {/* Cancel Booking Confirmation Modal */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={confirmModal}
-        onRequestClose={() => {
-          setConfirmModal(!confirmModal);
-        }}
+        onRequestClose={() => setConfirmModal(false)}
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
-            <Text
-              style={{
-                fontSize: 17,
-                justifyContent: "center",
-                marginBottom: 10,
-              }}
-            >
+            <Text style={styles.confirmModalText}>
               คุณต้องการยกเลิกการจองห้องหรือไม่
             </Text>
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.Twobutton, styles.buttonClose]}
-                onPress={() => setConfirmModal(!confirmModal)}
+                onPress={() => setConfirmModal(false)}
               >
                 <Text style={styles.textStyle}>ยกเลิก</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.Twobutton, styles.buttonConfirm]}
-                onPress={() => cancelBooking()}
+                onPress={cancelBooking} // Call the updated function
               >
                 <Text style={styles.textStyle}>ยืนยัน</Text>
               </TouchableOpacity>
@@ -340,14 +481,13 @@ const ProfileScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
-      {/* Cancel Animation Modal */}
+
+      {/* Success/Action Animation Modal */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={modalVisible}
-        onRequestClose={() => {
-          setModalVisible(!modalVisible);
-        }}
+        onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
@@ -357,40 +497,36 @@ const ProfileScreen = ({ navigation, route }) => {
               loop={false}
               style={{ width: 120, height: 120 }}
             />
+            {/* Optional: Add dynamic text here based on action */}
           </View>
         </View>
       </Modal>
 
-      {/* Delete like books */}
+      {/* Delete Liked Book Confirmation Modal */}
       <Modal
         animationType="fade"
         transparent={true}
         visible={deleteBook}
-        onRequestClose={() => {
-          setDeleteBook(!deleteBook);
-        }}
+        onRequestClose={() => setDeleteBook(false)}
       >
         <View style={styles.centeredView}>
           <View style={styles.modalView}>
-            <Text
-              style={{
-                fontSize: 17,
-                justifyContent: "center",
-                marginBottom: 10,
-              }}
-            >
-              ลบหนังสือออกจากหนังสือที่ชอบ
+            <Text style={styles.confirmModalText}>
+              ลบหนังสือ "{handleDelete}" ออกจากรายการที่ชอบ?
             </Text>
             <View style={styles.buttonContainer}>
               <TouchableOpacity
                 style={[styles.Twobutton, styles.buttonClose]}
-                onPress={() => setDeleteBook(!deleteBook)}
+                onPress={() => {
+                  setDeleteBook(false);
+                  setHandleDelete("");
+                }} // Clear title on cancel
               >
                 <Text style={styles.textStyle}>ยกเลิก</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.Twobutton, styles.buttonConfirm]}
-                onPress={() => deleteLikedBooks(likedBooks)}
+                onPress={deleteLikedBooks} // Call delete function
               >
                 <Text style={styles.textStyle}>ยืนยัน</Text>
               </TouchableOpacity>
@@ -402,93 +538,197 @@ const ProfileScreen = ({ navigation, route }) => {
   );
 };
 
+// --- Styles --- (Refactored for clarity)
 const styles = StyleSheet.create({
-  textStyle: {
-    color: "white",
-    fontWeight: "bold",
-    textAlign: "center",
-    fontSize: 17,
-  },
-
-  centeredView: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  modalView: {
-    margin: 20,
     backgroundColor: "white",
-    borderRadius: 20,
-    padding: 30,
+  },
+  profileCard: {
+    backgroundColor: "#f5f5f5",
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 15,
+    padding: 20,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    width: "80%",
-    height: "20%",
-    justifyContent: "center",
-  },
-
-  modalText: {
-    fontSize: 18,
-    marginTop: 10,
-    textAlign: "center",
-  },
-  buttonContainer: {
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-
-  Twobutton: {
-    marginTop: 20,
-    borderRadius: 40,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     elevation: 2,
   },
-  buttonConfirm: {
-    backgroundColor: "#ED008C",
+  profileImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: "#ED008C",
   },
-  buttonClose: {
+  profileUsername: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 10,
+  },
+  profileStudentID: {
+    fontSize: 18, // Slightly smaller
+    color: "#555",
+  },
+  profileEmail: {
+    color: "gray",
+    marginTop: 5,
+    fontSize: 14,
+  },
+  bookingCard: {
+    backgroundColor: "#ED008C",
+    marginHorizontal: 20,
     marginTop: 20,
-    backgroundColor: "#adadad",
+    borderRadius: 15,
+    padding: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  bookingHeader: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  bookingText: {
+    color: "white",
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  cancelButton: {
+    marginTop: 15,
+    backgroundColor: "white",
+    paddingVertical: 10,
+    paddingHorizontal: 25,
+    borderRadius: 20,
+  },
+  cancelButtonText: {
+    color: "#ED008C",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  noBookingContainer: {
+    // flex: 1, // Removed flex: 1 to prevent pushing content down excessively
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 30, // Increased margin
+    paddingVertical: 20,
+  },
+  noBookingText: {
+    color: "gray",
+    fontSize: 16,
+  },
+  likedBooksSection: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    flexShrink: 1, // Prevent section from growing too large if many books
+  },
+  likedBooksHeader: {
+    marginBottom: 10, // Adjusted margin
+    fontSize: 17,
+    fontWeight: "bold",
   },
   likedbooksCard: {
     width: 120,
     marginRight: 10,
     alignItems: "center",
+    height: 190, // Increased height slightly
+    justifyContent: "flex-start", // Align items to top
+    paddingBottom: 5,
   },
-
   likedbooksImage: {
-    width: 80,
-    height: 120,
+    width: 100, // Adjusted size
+    height: 140, // Adjusted size
     borderRadius: 8,
-    marginBottom: 5,
-
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 5,
-    elevation: 3,
+    marginBottom: 8, // Increased margin
+    // Removed shadow from image, card has shadow
   },
-
+  textContainer: {
+    flex: 1, // Allow text container to fill remaining space
+    justifyContent: "center",
+    alignItems: "center", // Center text horizontally
+    width: "100%", // Ensure it takes full width of card
+    paddingHorizontal: 5,
+  },
   likedbooksTitle: {
     fontSize: 12,
     fontWeight: "bold",
     textAlign: "center",
+    marginBottom: 2,
   },
-
   likedbooksAuthor: {
     fontSize: 10,
     color: "#777",
     textAlign: "center",
+  },
+  noLikedBooksText: {
+    textAlign: "center",
+    color: "grey",
+    marginTop: 20,
+    fontStyle: "italic",
+  },
+  // --- Modal Styles ---
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)", // Semi-transparent background
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 30, // Consistent padding
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: "85%", // Slightly wider modal
+    // Removed fixed height, let content determine height
+    justifyContent: "center",
+  },
+  confirmModalText: {
+    fontSize: 17,
+    textAlign: "center",
+    marginBottom: 25, // Increased margin
+    lineHeight: 24, // Improve readability
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around", // Use space-around for better spacing
+    width: "100%",
+    marginTop: 10, // Add some top margin
+  },
+  Twobutton: {
+    borderRadius: 25, // More rounded buttons
+    paddingHorizontal: 25, // More horizontal padding
+    paddingVertical: 12,
+    elevation: 2,
+    minWidth: 100, // Ensure minimum button width
+    alignItems: "center", // Center text in button
+  },
+  buttonConfirm: {
+    backgroundColor: "#ED008C",
+  },
+  buttonClose: {
+    backgroundColor: "#adadad",
+  },
+  textStyle: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center",
+    fontSize: 16, // Consistent font size
   },
 });
 
